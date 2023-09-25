@@ -62,7 +62,7 @@ pub fn parse_args(values: Vec<&str>) -> Vec<u64> {
 pub fn parse_binary(filepath:String) -> Vec<u64> {
     let bytes = fs::read(filepath).unwrap();
     let bytes = bytes.chunks(8);
-    let data = bytes
+    let mut data = bytes
         .into_iter()
         .map(|x| {
             let mut data = [0u8; 8];
@@ -71,6 +71,7 @@ pub fn parse_binary(filepath:String) -> Vec<u64> {
             u64::from_be_bytes(data)
         })
         .collect::<Vec<u64>>();
+    data.reverse();
     data
 } 
 
