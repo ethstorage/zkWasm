@@ -43,7 +43,7 @@ impl Context {
         if self.private_inputs.is_empty() {
             panic!("failed to read private input, please checkout your input");
         }
-        self.private_inputs.remove(0)
+        self.private_inputs.pop().unwrap()
     }
 
     pub fn push_public(&mut self, value: u64) {
