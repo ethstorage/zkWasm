@@ -82,7 +82,9 @@ pub fn register_wasm_input_foreign(
                 context.push_public(value);
                 value
             } else {
-                context.pop_private()
+                let value = context.pop_private();
+                println!("wasm_output:{:?}", value);
+                value
             };
 
             Some(wasmi::RuntimeValue::I64(input as i64))
