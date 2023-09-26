@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::collections::VecDeque;
 
 use crate::circuits::cell::AllocatedUnlimitedCell;
 use crate::circuits::config::zkwasm_k;
@@ -55,7 +56,7 @@ pub(crate) trait InternalHostPluginBuilder {
 impl HostEnv {
     pub fn new_with_full_foreign_plugins(
         public_inputs: Vec<u64>,
-        private_inputs: Vec<u64>,
+        private_inputs: VecDeque<u64>,
         context_input: Vec<u64>,
         context_output: Rc<RefCell<Vec<u64>>>,
     ) -> (Self, WasmRuntimeIO) {

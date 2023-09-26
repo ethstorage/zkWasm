@@ -29,6 +29,7 @@ use notify::Watcher;
 use serde::Deserialize;
 use serde::Serialize;
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::fs;
 use std::io::Write;
 use std::path::Path;
@@ -163,7 +164,7 @@ pub fn exec_dry_run_service(
 
                             let private_inputs = parse_args(
                                 sequence.private_inputs.iter().map(|s| s.as_str()).collect(),
-                            );
+                            ).into();
                             let public_inputs = parse_args(
                                 sequence.public_inputs.iter().map(|s| s.as_str()).collect(),
                             );
@@ -228,7 +229,7 @@ pub fn exec_dry_run(
     wasm_binary: Vec<u8>,
     phantom_functions: Vec<String>,
     public_inputs: Vec<u64>,
-    private_inputs: Vec<u64>,
+    private_inputs: VecDeque<u64>,
     context_inputs: Vec<u64>,
     context_outputs: Rc<RefCell<Vec<u64>>>,
 ) -> Result<()> {
@@ -251,7 +252,7 @@ pub fn exec_create_proof(
     phantom_functions: Vec<String>,
     output_dir: &PathBuf,
     public_inputs: Vec<u64>,
-    private_inputs: Vec<u64>,
+    private_inputs: VecDeque<u64>,
     context_inputs: Vec<u64>,
     context_outputs: Rc<RefCell<Vec<u64>>>,
 ) -> Result<()> {
@@ -348,7 +349,7 @@ pub fn exec_aggregate_create_proof(
     phantom_functions: Vec<String>,
     output_dir: &PathBuf,
     public_inputs: Vec<Vec<u64>>,
-    private_inputs: Vec<Vec<u64>>,
+    private_inputs: Vec<VecDeque<u64>>,
     context_inputs: Vec<Vec<u64>>,
     context_outputs: Vec<Rc<RefCell<Vec<u64>>>>,
 ) -> Result<()> {
