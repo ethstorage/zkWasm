@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
+use std::collections::VecDeque;
 
 use anyhow::Result;
 use halo2_proofs::arithmetic::MultiMillerLoop;
@@ -47,7 +48,7 @@ pub struct ExecutionArg {
     /// Public inputs for `wasm_input(1)`
     pub public_inputs: Vec<u64>,
     /// Private inputs for `wasm_input(0)`
-    pub private_inputs: Vec<u64>,
+    pub private_inputs: VecDeque<u64>,
     /// Context inputs for `wasm_read_context()`
     pub context_inputs: Vec<u64>,
     /// Context outputs for `wasm_write_context()`
@@ -111,7 +112,7 @@ impl<E: MultiMillerLoop> ZkWasmLoader<E> {
     fn circuit_without_witness(&self) -> Result<TestCircuit<E::Scalar>> {
         let (env, wasm_runtime_io) = HostEnv::new_with_full_foreign_plugins(
             vec![],
-            vec![],
+            vec![].into(),
             vec![],
             Rc::new(RefCell::new(vec![])),
         );
@@ -156,7 +157,7 @@ impl<E: MultiMillerLoop> ZkWasmLoader<E> {
     pub fn checksum(&self, params: &Params<E::G1Affine>) -> Result<Vec<E::G1Affine>> {
         let (env, _) = HostEnv::new_with_full_foreign_plugins(
             vec![],
-            vec![],
+            vec![].into(),
             vec![],
             Rc::new(RefCell::new(vec![])),
         );
@@ -175,7 +176,7 @@ impl<E: MultiMillerLoop> ZkWasmLoader<E> {
     pub fn dry_run(&self, arg: ExecutionArg) -> Result<Option<RuntimeValue>> {
         let (mut env, _) = HostEnv::new_with_full_foreign_plugins(
             arg.public_inputs,
-            arg.private_inputs,
+            arg.private_inputs.into(),
             arg.context_inputs,
             arg.context_outputs,
         );
@@ -188,7 +189,7 @@ impl<E: MultiMillerLoop> ZkWasmLoader<E> {
     pub fn run(&self, arg: ExecutionArg) -> Result<ExecutionResult<RuntimeValue>> {
         let (mut env, wasm_runtime_io) = HostEnv::new_with_full_foreign_plugins(
             arg.public_inputs,
-            arg.private_inputs,
+            arg.private_inputs.into(),
             arg.context_inputs,
             arg.context_outputs,
         );

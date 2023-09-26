@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use anyhow::Result;
 use app_builder::AppBuilder;
 use args::parse_args;
@@ -61,21 +63,21 @@ impl ArgBuilder for SampleApp {
             .help("Private arguments of your wasm program arguments of format value:type where type=i64|bytes|bytes-packed")
             .min_values(0)
     }
-    fn parse_single_private_arg(matches: &ArgMatches) -> Vec<u64> {
+    fn parse_single_private_arg(matches: &ArgMatches) -> VecDeque<u64> {
         let inputs: Vec<&str> = matches
             .get_many("private")
             .unwrap_or_default()
             .map(|v: &String| v.as_str())
             .collect();
 
-        parse_args(inputs.into())
+        parse_args(inputs.into()).into()
     }
 
     fn aggregate_private_args<'a>() -> Arg<'a> {
         // We only aggregate one proof in the sample program.
         Self::single_private_arg()
     }
-    fn parse_aggregate_private_args(matches: &ArgMatches) -> Vec<Vec<u64>> {
+    fn parse_aggregate_private_args(matches: &ArgMatches) -> Vec<VecDeque<u64>> {
         let inputs = Self::parse_single_private_arg(matches);
 
         vec![inputs]

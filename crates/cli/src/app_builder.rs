@@ -5,6 +5,7 @@ use delphinus_zkwasm::circuits::config::MIN_K;
 use log::info;
 use log::warn;
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
@@ -115,8 +116,8 @@ pub trait AppBuilder: CommandBuilder {
             }
             Some(("dry-run", sub_matches)) => {
                 let public_inputs: Vec<u64> = Self::parse_single_public_arg(&sub_matches);
-                let private_inputs: Vec<u64> = match sub_matches.contains_id("private_file") {
-                    true => Self::parse_private_file(&sub_matches),
+                let private_inputs: VecDeque<u64> = match sub_matches.contains_id("private_file") {
+                    true => Self::parse_private_file(&sub_matches).into(),
                     false => Self::parse_single_private_arg(&sub_matches)
                 };
                 let context_in: Vec<u64> = Self::parse_context_in_arg(&sub_matches);
@@ -156,7 +157,7 @@ pub trait AppBuilder: CommandBuilder {
             }
             Some(("single-prove", sub_matches)) => {
                 let public_inputs: Vec<u64> = Self::parse_single_public_arg(&sub_matches);
-                let private_inputs: Vec<u64> = Self::parse_single_private_arg(&sub_matches);
+                let private_inputs: VecDeque<u64> = Self::parse_single_private_arg(&sub_matches);
                 let context_in: Vec<u64> = Self::parse_context_in_arg(&sub_matches);
                 let context_out_path: Option<PathBuf> =
                     Self::parse_context_out_path_arg(&sub_matches);
@@ -197,7 +198,7 @@ pub trait AppBuilder: CommandBuilder {
             }
             Some(("aggregate-prove", sub_matches)) => {
                 let public_inputs: Vec<Vec<u64>> = Self::parse_aggregate_public_args(&sub_matches);
-                let private_inputs: Vec<Vec<u64>> =
+                let private_inputs: Vec<VecDeque<u64>> =
                     Self::parse_aggregate_private_args(&sub_matches);
                 let context_inputs = public_inputs.iter().map(|_| vec![]).collect();
                 let context_outputs = public_inputs
