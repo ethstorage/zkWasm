@@ -197,18 +197,32 @@ impl<E: MultiMillerLoop> ZkWasmLoader<E> {
         let compiled_module = self.compile(&env)?;
 
         let result = compiled_module.run(&mut env, wasm_runtime_io)?;
-
         result.tables.profile_tables();
         result.tables.write_json(None);
-
         Ok(result)
+    }
+
+    pub fn run_with_segment(&self, arg: ExecutionArg) -> Result<ExecutionResult<RuntimeValue>> {
+        let (mut env, wasm_runtime_io) = HostEnv::new_with_full_foreign_plugins(
+            arg.public_inputs,
+            arg.private_inputs.into(),
+            arg.context_inputs,
+            arg.context_outputs,
+        );
+
+        let compiled_module = self.compile(&env)?;
+
+        let _result: ExecutionResult<RuntimeValue> = compiled_module.run_with_callback(&mut env, wasm_runtime_io)?;
+        std::process::exit(1);
+        Ok(_result)
     }
 
     pub fn circuit_with_witness(
         &self,
         arg: ExecutionArg,
     ) -> Result<(TestCircuit<E::Scalar>, Vec<E::Scalar>)> {
-        let execution_result = self.run(arg)?;
+        // let execution_result = self.run(arg)?;
+        let execution_result = self.run_with_segment(arg)?;
 
         let instance: Vec<E::Scalar> = execution_result
             .public_inputs_and_outputs

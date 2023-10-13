@@ -58,6 +58,7 @@ pub struct Tables {
 impl Tables {
     pub fn write_json(&self, dir: Option<PathBuf>) {
         fn write_file(folder: &PathBuf, filename: &str, buf: &String) {
+            std::fs::create_dir_all(folder).unwrap();
             let mut folder = folder.clone();
             folder.push(filename);
             let mut fd = std::fs::File::create(folder.as_path()).unwrap();

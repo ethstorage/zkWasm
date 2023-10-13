@@ -19,6 +19,10 @@ use wasmi::RuntimeValue;
 use super::CompiledImage;
 use super::ExecutionResult;
 
+use std::cell::RefMut;
+use std::mem;
+use std::env;
+
 pub struct WasmRuntimeIO {
     pub public_inputs_and_outputs: Rc<RefCell<Vec<u64>>>,
     pub outputs: Rc<RefCell<Vec<u64>>>,
@@ -41,6 +45,12 @@ pub trait Execution<R> {
         externals: &mut E,
         wasm_io: WasmRuntimeIO,
     ) -> Result<ExecutionResult<R>>;
+
+    fn run_with_callback<E: Externals>(
+        self,
+        externals: &mut E,
+        wasm_io: WasmRuntimeIO
+    ) -> Result<ExecutionResult<RuntimeValue>>;
 }
 
 impl Execution<RuntimeValue>
@@ -98,6 +108,99 @@ impl Execution<RuntimeValue>
             public_inputs_and_outputs: wasm_io.public_inputs_and_outputs.borrow().clone(),
             outputs: wasm_io.public_inputs_and_outputs.borrow().clone(),
         })
+    }
+
+    fn run_with_callback<E: Externals>(
+        self,
+        externals: &mut E,
+        wasm_io: WasmRuntimeIO,
+    ) -> Result<ExecutionResult<RuntimeValue>> {
+        let instance = self
+            .instance
+            .run_start_tracer(externals, self.tracer.clone())
+            .unwrap();
+
+        let mut segment = 0;
+        let callback = |mut tracer: RefMut<'_, wasmi::tracer::Tracer> | {
+            let _execution_tables = {    
+                let mtable = {
+                    let mentries = tracer
+                        .etable
+                        .entries()
+                        .iter()
+                        .map(|eentry| memory_event_of_step(eentry, &mut 1))
+                        .collect::<Vec<Vec<_>>>()
+                        .concat();
+                    let mentries = vec![];
+                    MTable::new(mentries, &self.tables.imtable)
+                };
+    
+                ExecutionTable {
+                    etable: mem::take(&mut tracer.etable),
+                    mtable,
+                    jtable: mem::take(&mut tracer.jtable),
+                }
+            };
+    
+            println!("collecting execution_tables for segment: {}", segment);
+            let _result: ExecutionResult<RuntimeValue> = ExecutionResult {
+                tables: Tables {
+                    compilation_tables: self.tables.clone(),
+                    execution_tables:_execution_tables,
+                },
+                result: None,
+                public_inputs_and_outputs: wasm_io.public_inputs_and_outputs.borrow().clone(),
+                outputs: wasm_io.public_inputs_and_outputs.borrow().clone(),
+            };
+            let mut dir = env::current_dir().unwrap();
+            dir.push(segment.to_string());
+            _result.tables.write_json( Some(dir));
+            println!("segment {} tables has dumped!", segment);
+            segment += 1;
+        };
+
+        let result =
+            instance.invoke_export_trace_with_callback(&self.entry, &[], externals, self.tracer.clone(),callback)?;
+
+        let execution_tables = {
+            let tracer = self.tracer.borrow();
+
+            let mtable = {
+                let mentries = tracer
+                    .etable
+                    .entries()
+                    .iter()
+                    .map(|eentry| memory_event_of_step(eentry, &mut 1))
+                    .collect::<Vec<Vec<_>>>()
+                    .concat();
+
+                MTable::new(mentries, &self.tables.imtable)
+            };
+
+            ExecutionTable {
+                etable: tracer.etable.clone(),
+                mtable,
+                jtable: tracer.jtable.clone(),
+            }
+        };
+
+        println!("collecting last execution_tables for segment: {}", segment);
+
+        let result = ExecutionResult {
+            tables: Tables {
+                compilation_tables: self.tables.clone(),
+                execution_tables,
+            },
+            result,
+            public_inputs_and_outputs: wasm_io.public_inputs_and_outputs.borrow().clone(),
+            outputs: wasm_io.public_inputs_and_outputs.borrow().clone(),
+        };
+        
+        let mut dir = env::current_dir().unwrap();
+        dir.push(segment.to_string());
+        result.tables.write_json(Some(dir));
+        println!("final segment {} tables has dumped!", segment);
+        Ok(result)
     }
 }
 
