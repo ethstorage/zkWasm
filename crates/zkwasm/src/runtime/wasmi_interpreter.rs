@@ -2,6 +2,10 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use specs::SegmentTables;
+use specs::imtable::InitMemoryTable;
+use threadpool::ThreadPool;
+
 use crate::circuits::config::zkwasm_k;
 use crate::runtime::memory_event_of_step;
 use anyhow::Result;
@@ -120,11 +124,13 @@ impl Execution<RuntimeValue>
             .run_start_tracer(externals, self.tracer.clone())
             .unwrap();
 
+        let pool = ThreadPool::new(32);
+
         let mut segment = 0;
         let callback = |mut tracer: RefMut<'_, wasmi::tracer::Tracer> | {
             let _execution_tables = {    
                 let mtable = {
-                    let mentries = tracer
+                    let _mentries = tracer
                         .etable
                         .entries()
                         .iter()
@@ -132,7 +138,7 @@ impl Execution<RuntimeValue>
                         .collect::<Vec<Vec<_>>>()
                         .concat();
                     let mentries = vec![];
-                    MTable::new(mentries, &self.tables.imtable)
+                    MTable::new(mentries, &InitMemoryTable::new(vec![], 2))
                 };
     
                 ExecutionTable {
@@ -143,20 +149,38 @@ impl Execution<RuntimeValue>
             };
     
             println!("collecting execution_tables for segment: {}", segment);
-            let _result: ExecutionResult<RuntimeValue> = ExecutionResult {
-                tables: Tables {
-                    compilation_tables: self.tables.clone(),
-                    execution_tables:_execution_tables,
-                },
-                result: None,
-                public_inputs_and_outputs: wasm_io.public_inputs_and_outputs.borrow().clone(),
-                outputs: wasm_io.public_inputs_and_outputs.borrow().clone(),
+            // let _result: ExecutionResult<RuntimeValue> = ExecutionResult {
+            //     tables: Tables {
+            //         compilation_tables: self.tables.clone(),
+            //         execution_tables:_execution_tables,
+            //     },
+            //     result: None,
+            //     public_inputs_and_outputs: wasm_io.public_inputs_and_outputs.borrow().clone(),
+            //     outputs: wasm_io.public_inputs_and_outputs.borrow().clone(),
+            // };
+            let stable = SegmentTables {
+                execution_tables: _execution_tables,
             };
             let mut dir = env::current_dir().unwrap();
             dir.push(segment.to_string());
-            _result.tables.write_json( Some(dir));
-            println!("segment {} tables has dumped!", segment);
+            pool.execute(move || {
+                stable.write_json( Some(dir));
+                println!("segment {} tables has dumped!", segment);
+            });
             segment += 1;
+            let mut wait_count = 0;
+            while pool.queued_count() > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+                wait_count+=1;
+
+                if wait_count%50 == 0 {
+                    println!("waiting for dump completion");
+                }
+            }
+            // if segment == 10 {
+            //     handle.join().unwrap();
+            //     std::process::exit(0);
+            // }
         };
 
         let result =
