@@ -61,6 +61,21 @@ with OPTIONS:
             Public arguments of your wasm program arguments of format value:type where
             type=i64|bytes|bytes-packed, multiple values should be separated with ' ' (space)
 ```
+
+## Trace segmentation:
+### for a simple go `add function` wasm image
+```
+cargo run --release -- -k 23 --function zkmain --output ./output --wasm ./crates/zkwasm/wasm/simple_add.wasm setup
+
+cd output && cargo run --release -- -k 23 --function zkmain --wasm "../crates/zkwasm/wasm/simple_add.wasm" --output ./ single-prove
+```
+
+### for op-client single step wasm image
+```
+cargo run --release -- -k 23 --function zkmain --output ./output --wasm ./crates/zkwasm/wasm/op-program-client-smoketest.wasm setup
+cd output &&  cargo run --release -- -k 23 --function zkmain --wasm "../crates/zkwasm/wasm/op-program-client-smoketest.wasm" --output ./ single-prove --private_file "../crates/zkwasm/wasm/preimages-smoketest.bin"
+```
+
 ## Batch prove and verify:
 ```
 cargo run --release -- --function <FUNCTION_NAME> --wasm <WASM_BINARY> aggregate-prove [OPTIONS]

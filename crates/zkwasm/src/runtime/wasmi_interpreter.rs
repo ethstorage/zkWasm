@@ -131,7 +131,6 @@ impl Execution<RuntimeValue>
                         .map(|eentry| memory_event_of_step(eentry, &mut 1))
                         .collect::<Vec<Vec<_>>>()
                         .concat();
-                    let mentries = vec![];
                     MTable::new(mentries, &self.tables.imtable)
                 };
     
