@@ -164,7 +164,7 @@ impl Execution<RuntimeValue>
             let mut dir = env::current_dir().unwrap();
             dir.push(segment.to_string());
             pool.execute(move || {
-                stable.write_json( Some(dir));
+                stable.write_flexbuffers( Some(dir));
                 println!("segment {} tables has dumped!", segment);
             });
             segment += 1;

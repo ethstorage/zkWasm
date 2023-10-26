@@ -96,6 +96,35 @@ impl Tables {
 }
 
 impl SegmentTables {
+    pub fn write_flexbuffers(&self, dir: Option<PathBuf>) {
+        fn write_file(folder: &PathBuf, filename: &str, buf: &[u8]) {
+            std::fs::create_dir_all(folder).unwrap();
+            let mut folder = folder.clone();
+            folder.push(filename);
+            let mut fd = std::fs::File::create(folder.as_path()).unwrap();
+            folder.pop();
+
+            fd.write(buf).unwrap();
+        }
+
+        let etable = flexbuffers::to_vec(&self.execution_tables.etable).unwrap();
+        let external_host_call_table = flexbuffers::to_vec(
+            &self
+                .execution_tables
+                .etable
+                .filter_external_host_call_table(),
+        )
+        .unwrap();
+        let mtable = flexbuffers::to_vec(&self.execution_tables.mtable).unwrap();
+        let jtable = flexbuffers::to_vec(&self.execution_tables.jtable).unwrap();
+
+        let dir = dir.unwrap_or(env::current_dir().unwrap());
+        write_file(&dir, "etable.flex", &etable);
+        write_file(&dir, "mtable.flex", &mtable);
+        write_file(&dir, "jtable.flex", &jtable);
+        write_file(&dir, "external_host_table.flex", &external_host_call_table);
+    }
+
     pub fn write_json(&self, dir: Option<PathBuf>) {
         fn write_file(folder: &PathBuf, filename: &str, buf: &String) {
             std::fs::create_dir_all(folder).unwrap();
