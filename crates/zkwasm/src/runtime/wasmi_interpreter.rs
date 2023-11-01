@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use specs::SegmentTables;
-use specs::imtable::InitMemoryTable;
+// use specs::imtable::InitMemoryTable;
 use threadpool::ThreadPool;
 
 use crate::circuits::config::zkwasm_k;
