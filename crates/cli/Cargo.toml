@@ -26,3 +26,6 @@ wasmi.workspace = true
 [features]
 default = []
 cuda = ["delphinus-zkwasm/cuda"]
+
+[profile.release]
+debug = true
