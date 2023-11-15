@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::rc::Rc;
 
 use specs::host_function::HostPlugin;
@@ -12,7 +13,7 @@ use super::Op;
 
 struct Context {
     public_inputs: Vec<u64>,
-    private_inputs: Vec<u64>,
+    private_inputs: VecDeque<u64>,
     instance: Rc<RefCell<Vec<u64>>>,
     output: Rc<RefCell<Vec<u64>>>,
 }
@@ -20,7 +21,7 @@ struct Context {
 impl Context {
     pub fn new(
         public_inputs: Vec<u64>,
-        private_inputs: Vec<u64>,
+        private_inputs: VecDeque<u64>,
         instance: Rc<RefCell<Vec<u64>>>,
         output: Rc<RefCell<Vec<u64>>>,
     ) -> Self {
@@ -43,7 +44,7 @@ impl Context {
         if self.private_inputs.is_empty() {
             panic!("failed to read private input, please checkout your input");
         }
-        self.private_inputs.remove(0)
+        self.private_inputs.pop_front().unwrap()
     }
 
     pub fn push_public(&mut self, value: u64) {
@@ -65,7 +66,7 @@ impl ForeignContext for Context {}
 pub fn register_wasm_input_foreign(
     env: &mut HostEnv,
     public_inputs: Vec<u64>,
-    private_inputs: Vec<u64>,
+    private_inputs: VecDeque<u64>,
 ) -> WasmRuntimeIO {
     let public_inputs_and_outputs = Rc::new(RefCell::new(vec![]));
     let outputs = Rc::new(RefCell::new(vec![]));
@@ -95,7 +96,6 @@ pub fn register_wasm_input_foreign(
 
             let value: i64 = args.nth(0);
             context.push_output(value as u64);
-
             None
         },
     );

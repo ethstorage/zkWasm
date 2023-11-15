@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -55,7 +56,7 @@ pub(crate) trait InternalHostPluginBuilder {
 impl HostEnv {
     pub fn new_with_full_foreign_plugins(
         public_inputs: Vec<u64>,
-        private_inputs: Vec<u64>,
+        private_inputs: VecDeque<u64>,
         context_input: Vec<u64>,
         context_output: Arc<Mutex<Vec<u64>>>,
     ) -> (Self, WasmRuntimeIO) {

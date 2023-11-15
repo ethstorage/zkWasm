@@ -153,7 +153,7 @@ fn build_circuit() -> Result<(ZkWasmLoader<Bn256>, TestCircuit<Fr>, Vec<Fr>)> {
 
     let (circuit, instances) = loader.circuit_with_witness(ExecutionArg {
         public_inputs,
-        private_inputs,
+        private_inputs: private_inputs.into(),
         context_inputs: vec![],
         context_outputs: Arc::new(Mutex::new(vec![])),
     })?;

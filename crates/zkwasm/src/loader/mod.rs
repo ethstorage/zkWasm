@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -48,7 +49,7 @@ pub struct ExecutionArg {
     /// Public inputs for `wasm_input(1)`
     pub public_inputs: Vec<u64>,
     /// Private inputs for `wasm_input(0)`
-    pub private_inputs: Vec<u64>,
+    pub private_inputs: VecDeque<u64>,
     /// Context inputs for `wasm_read_context()`
     pub context_inputs: Vec<u64>,
     /// Context outputs for `wasm_write_context()`
@@ -149,7 +150,7 @@ impl<E: MultiMillerLoop> ZkWasmLoader<E> {
     pub fn checksum(&self, params: &Params<E::G1Affine>) -> Result<Vec<E::G1Affine>> {
         let (env, _) = HostEnv::new_with_full_foreign_plugins(
             vec![],
-            vec![],
+            vec![].into(),
             vec![],
             Arc::new(Mutex::new(vec![])),
         );

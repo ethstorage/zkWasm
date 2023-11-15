@@ -67,7 +67,7 @@ impl Execution<RuntimeValue>
 
         let result =
             instance.invoke_export_trace(&self.entry, &[], externals, self.tracer.clone())?;
-
+        
         // because we've already write all the tables loader's callback
         // there is no need to write 
 

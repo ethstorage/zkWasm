@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+use std::fs;
 use std::path::PathBuf;
 
 use clap::arg;
@@ -57,6 +59,21 @@ pub fn parse_args(values: Vec<&str>) -> Vec<u64> {
         .flatten()
         .collect()
 }
+
+pub fn parse_binary(filepath:String) -> VecDeque<u64> {
+    let bytes = fs::read(filepath).unwrap();
+    let bytes = bytes.chunks(8);
+    let data = bytes
+        .into_iter()
+        .map(|x| {
+            let mut data = [0u8; 8];
+            data[..x.len()].copy_from_slice(x);
+
+            u64::from_be_bytes(data)
+        })
+        .collect::<VecDeque<u64>>();
+    data
+} 
 
 pub trait ArgBuilder {
     fn zkwasm_k_arg<'a>() -> Arg<'a> {
@@ -158,10 +175,19 @@ pub trait ArgBuilder {
     fn parse_aggregate_public_args(matches: &ArgMatches) -> Vec<Vec<u64>>;
 
     fn single_private_arg<'a>() -> Arg<'a>;
-    fn parse_single_private_arg(matches: &ArgMatches) -> Vec<u64>;
+    fn parse_single_private_arg(matches: &ArgMatches) -> VecDeque<u64>;
+
+    fn private_file_arg<'a>() -> Arg<'a>;
+    fn parse_private_file(matches: &ArgMatches) -> VecDeque<u64>{
+        let filepath = matches
+            .get_one::<String>("private_file")
+            .expect("private_file is required")
+            .to_string();     
+        parse_binary(filepath)
+    }
 
     fn aggregate_private_args<'a>() -> Arg<'a>;
-    fn parse_aggregate_private_args(matches: &ArgMatches) -> Vec<Vec<u64>>;
+    fn parse_aggregate_private_args(matches: &ArgMatches) -> Vec<VecDeque<u64>>;
 
     fn single_instance_path_arg<'a>() -> Arg<'a> {
         arg!(

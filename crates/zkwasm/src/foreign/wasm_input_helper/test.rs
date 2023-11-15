@@ -21,7 +21,7 @@ mod tests {
         let wasm = wabt::wat2wasm(&textual_repr).expect("failed to parse wat");
 
         let mut env = HostEnv::new();
-        let wasm_runtime_io = register_wasm_input_foreign(&mut env, public_inputs, vec![]);
+        let wasm_runtime_io = register_wasm_input_foreign(&mut env, public_inputs, vec![].into());
         env.finalize();
 
         test_circuit_with_env(env, wasm_runtime_io, wasm, "main").unwrap();
@@ -56,7 +56,7 @@ mod tests {
         let public_inputs = vec![1, 2];
 
         let mut env = HostEnv::new();
-        let wasm_runtime_io = register_wasm_input_foreign(&mut env, public_inputs, private_inputs);
+        let wasm_runtime_io = register_wasm_input_foreign(&mut env, public_inputs, private_inputs.into());
         env.finalize();
 
         test_circuit_with_env(env, wasm_runtime_io, wasm, "main").unwrap();

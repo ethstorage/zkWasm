@@ -150,7 +150,7 @@ fn build_circuit() -> Result<(ZkWasmLoader<Bn256>, ExecutionArg)> {
     let loader = ZkWasmLoader::<Bn256>::new(20, wasm, vec![])?;
     let args = ExecutionArg {
         public_inputs,
-        private_inputs,
+        private_inputs: private_inputs.into(),
         context_inputs: vec![],
         context_outputs: Arc::new(Mutex::new(vec![])),
     };
