@@ -41,7 +41,7 @@ pub(crate) mod tests {
             let wasm = fs::read("wasm/keccak.wasm").unwrap();
 
             let mut env = HostEnv::new();
-            let wasm_runtime_io = register_wasm_input_foreign(&mut env, public_inputs.clone(), private_inputs.clone());
+            let wasm_runtime_io = register_wasm_input_foreign(&mut env, public_inputs.clone(), private_inputs.clone().into());
             env.finalize();
 
             test_circuit_with_env(env, wasm_runtime_io, wasm, "keccak_digest").unwrap();

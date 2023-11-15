@@ -153,7 +153,7 @@ fn build_circuit() -> Result<(ZkWasmLoader<Bn256>, TestCircuit<Fr>, Vec<Fr>)> {
 
     let (circuit, instances) = loader.circuit_with_witness(ExecutionArg {
         public_inputs,
-        private_inputs,
+        private_inputs: private_inputs.into(),
         context_inputs: vec![],
         context_outputs: Rc::new(RefCell::new(vec![])),
     })?;
@@ -170,7 +170,7 @@ mod tests {
         fn test_rlp_mock() {
             let (loader, circuit, instances) = build_circuit().unwrap();
 
-            loader.mock_test(&circuit, &instances).unwrap()
+            loader.mock_test(&circuit, &instances).unwrap();
         }
     }
 
