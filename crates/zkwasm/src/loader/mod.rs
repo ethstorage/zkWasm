@@ -97,7 +97,7 @@ impl<E: MultiMillerLoop> ZkWasmLoader<E> {
         Ok(())
     }
 
-    fn compile(&self, env: &HostEnv) -> Result<CompiledImage<NotStartedModuleRef<'_>, Tracer>> {
+    fn compile(&self, env: &HostEnv, callback: impl FnMut(wasmi::tracer::TracerCompilationTable) + 'static) -> Result<CompiledImage<NotStartedModuleRef<'_>, Tracer>> {
         let imports = ImportsBuilder::new().with_resolver("env", env);
 
         WasmInterpreter::compile(
@@ -106,6 +106,7 @@ impl<E: MultiMillerLoop> ZkWasmLoader<E> {
             &env.function_description_table(),
             ENTRY,
             &self.phantom_functions,
+            callback
         )
     }
 
@@ -152,7 +153,7 @@ impl<E: MultiMillerLoop> ZkWasmLoader<E> {
             vec![],
             Arc::new(Mutex::new(vec![])),
         );
-        let compiled = self.compile(&env)?;
+        let compiled = self.compile(&env, |_|{})?;
 
         let table_with_params = CompilationTableWithParams {
             table: &compiled.tables,
@@ -172,7 +173,7 @@ impl<E: MultiMillerLoop> ZkWasmLoader<E> {
             arg.context_outputs,
         );
 
-        let compiled_module = self.compile(&env)?;
+        let compiled_module = self.compile(&env, |_|{})?;
 
         compiled_module.dry_run(&mut env)
     }
@@ -185,7 +186,41 @@ impl<E: MultiMillerLoop> ZkWasmLoader<E> {
             arg.context_outputs,
         );
 
-        let compiled_module = self.compile(&env)?;
+        let callback = |tables: wasmi::tracer::TracerCompilationTable | {
+            let execution_tables = ExecutionTable {
+                etable: tables.etable,
+                jtable: Arc::new(tables.jtable),
+            };
+
+            let current_compilation_table= CompilationTable {
+                itable: Arc::new(tables.itable.clone()),
+                imtable: tables.imtable,
+                elem_table: Arc::new(tables.elem_table.clone()),
+                configure_table:  Arc::new(tables.configure_table.clone()),
+                static_jtable:  Arc::new(tables.static_jtable.clone()),
+                initialization_state: tables.prev_state,
+            };
+
+            let post_image_table = {
+                CompilationTable {
+                    itable: Arc::new(tables.itable),
+                    imtable: tables.next_imtable,
+                    elem_table: Arc::new(tables.elem_table),
+                    configure_table: Arc::new(tables.configure_table),
+                    static_jtable: Arc::new(tables.static_jtable),
+                    initialization_state: tables.next_state,
+                }
+            };
+
+            let _tables = Tables {
+                compilation_tables: current_compilation_table,
+                execution_tables,
+                post_image_table,
+            };
+
+        };
+
+        let compiled_module = self.compile(&env, callback)?;
 
         let result = compiled_module.run(&mut env, wasm_runtime_io)?;
 

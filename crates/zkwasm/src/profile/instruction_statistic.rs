@@ -98,6 +98,6 @@ impl InstructionStatistic for EventTable {
             })
             .collect::<BTreeMap<_, _>>();
 
-        println!("{:?}", summary);
+        println!("summary:{:?}", summary);
     }
 }

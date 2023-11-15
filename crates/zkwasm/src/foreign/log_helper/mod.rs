@@ -17,7 +17,7 @@ pub fn register_log_foreign(env: &mut HostEnv) {
         |_context: &mut dyn ForeignContext, args: wasmi::RuntimeArgs| {
             let value: u64 = args.nth(0);
 
-            println!("{}", value);
+            println!("log_foreign:{}", value);
 
             None
         },

@@ -23,6 +23,7 @@ mod spec;
 mod test_rlp;
 mod test_start;
 mod test_uniform_verifier;
+mod test_rlp_cont;
 
 /// Create circuit with trace and run mock test.
 fn test_circuit_mock<F: FieldExt>(
@@ -70,6 +71,7 @@ fn compile_then_execute_wasm(
         &env.function_description_table(),
         function_name,
         &vec![],
+        |_|{}
     )
     .unwrap();
 

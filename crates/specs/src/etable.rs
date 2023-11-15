@@ -39,23 +39,26 @@ impl Iterator for RestJops {
 }
 
 #[derive(Debug, Default, Clone, Serialize)]
-pub struct EventTable(Vec<EventTableEntry>);
+pub struct EventTable {
+    entries: Vec<EventTableEntry>,
+    pub latest_eid: u32
+}
 
 impl EventTable {
     pub fn new(entries: Vec<EventTableEntry>) -> Self {
-        Self(entries)
+        Self {entries, latest_eid: 0}
     }
 
     pub fn entries(&self) -> &Vec<EventTableEntry> {
-        &self.0
+        &self.entries
     }
 
     pub fn entries_mut(&mut self) -> &mut Vec<EventTableEntry> {
-        &mut self.0
+        &mut self.entries
     }
 
     pub fn filter_foreign_entries(&self, foreign: HostPlugin) -> Vec<EventTableEntry> {
-        self.0
+        self.entries
             .clone()
             .into_iter()
             .filter(|entry| match entry.step_info {
@@ -63,5 +66,9 @@ impl EventTable {
                 _ => false,
             })
             .collect::<Vec<_>>()
+    }
+
+    pub fn get_latest_eid(&self) -> u32 {
+        self.latest_eid
     }
 }

@@ -16,7 +16,7 @@ use wasmi::ModuleInstance;
 use wasmi::RuntimeValue;
 use wasmi::DEFAULT_VALUE_STACK_LIMIT;
 
-use super::state::UpdateCompilationTable;
+// use super::state::UpdateCompilationTable;
 use super::CompiledImage;
 use super::ExecutionResult;
 
@@ -68,6 +68,9 @@ impl Execution<RuntimeValue>
         let result =
             instance.invoke_export_trace(&self.entry, &[], externals, self.tracer.clone())?;
 
+        // because we've already write all the tables loader's callback
+        // there is no need to write 
+
         let execution_tables = {
             let tracer = self.tracer.borrow();
 
@@ -77,9 +80,10 @@ impl Execution<RuntimeValue>
             }
         };
 
-        let updated_init_memory_table = self
-            .tables
-            .update_init_memory_table(&execution_tables.etable);
+        // let updated_init_memory_table = self
+        //     .tables
+        //     .update_init_memory_table(&execution_tables.etable);
+        let updated_init_memory_table = self.tables.imtable.clone();
 
         let post_image_table = {
             CompilationTable {
@@ -89,8 +93,8 @@ impl Execution<RuntimeValue>
                 configure_table: self.tables.configure_table.clone(),
                 static_jtable: self.tables.static_jtable.clone(),
                 initialization_state: self
-                    .tables
-                    .update_initialization_state(&execution_tables.etable, true),
+                    .tables.initialization_state.clone(),
+                    // .update_initialization_state(&execution_tables.etable, true),
             }
         };
 
@@ -120,8 +124,9 @@ impl WasmiRuntime {
         host_plugin_lookup: &HashMap<usize, HostFunctionDesc>,
         entry: &str,
         phantom_functions: &Vec<String>,
+        callback: impl FnMut(wasmi::tracer::TracerCompilationTable) +'static
     ) -> Result<CompiledImage<wasmi::NotStartedModuleRef<'a>, wasmi::tracer::Tracer>> {
-        let tracer = wasmi::tracer::Tracer::new(host_plugin_lookup.clone(), phantom_functions);
+        let tracer = wasmi::tracer::Tracer::new(host_plugin_lookup.clone(), phantom_functions, callback);
         let tracer = Rc::new(RefCell::new(tracer));
 
         let instance = ModuleInstance::new(&module, imports, Some(tracer.clone()))
