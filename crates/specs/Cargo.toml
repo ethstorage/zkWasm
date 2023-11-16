@@ -15,6 +15,7 @@ strum_macros = "0.24.1"
 halo2_proofs.workspace = true
 parity-wasm.workspace = true
 rayon.workspace = true
+flexbuffers = "2.0.0"
 
 [features]
 default = []

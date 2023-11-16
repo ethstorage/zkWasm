@@ -19,6 +19,7 @@ use halo2aggregator_s::transcript::poseidon::PoseidonRead;
 use specs::CompilationTable;
 use specs::ExecutionTable;
 use specs::Tables;
+use threadpool::ThreadPool;
 use wasmi::tracer::Tracer;
 use wasmi::ImportsBuilder;
 use wasmi::NotStartedModuleRef;
@@ -98,7 +99,11 @@ impl<E: MultiMillerLoop> ZkWasmLoader<E> {
         Ok(())
     }
 
-    fn compile(&self, env: &HostEnv, callback: impl FnMut(wasmi::tracer::TracerCompilationTable) + 'static) -> Result<CompiledImage<NotStartedModuleRef<'_>, Tracer>> {
+    fn compile(
+        &self,
+        env: &HostEnv,
+        callback: impl FnMut(wasmi::tracer::TracerCompilationTable) + 'static,
+    ) -> Result<CompiledImage<NotStartedModuleRef<'_>, Tracer>> {
         let imports = ImportsBuilder::new().with_resolver("env", env);
 
         WasmInterpreter::compile(
@@ -107,7 +112,7 @@ impl<E: MultiMillerLoop> ZkWasmLoader<E> {
             &env.function_description_table(),
             ENTRY,
             &self.phantom_functions,
-            callback
+            callback,
         )
     }
 
@@ -154,7 +159,7 @@ impl<E: MultiMillerLoop> ZkWasmLoader<E> {
             vec![],
             Arc::new(Mutex::new(vec![])),
         );
-        let compiled = self.compile(&env, |_|{})?;
+        let compiled = self.compile(&env, |_| {})?;
 
         let table_with_params = CompilationTableWithParams {
             table: &compiled.tables,
@@ -174,7 +179,7 @@ impl<E: MultiMillerLoop> ZkWasmLoader<E> {
             arg.context_outputs,
         );
 
-        let compiled_module = self.compile(&env, |_|{})?;
+        let compiled_module = self.compile(&env, |_| {})?;
 
         compiled_module.dry_run(&mut env)
     }
@@ -187,18 +192,21 @@ impl<E: MultiMillerLoop> ZkWasmLoader<E> {
             arg.context_outputs,
         );
 
-        let callback = |tables: wasmi::tracer::TracerCompilationTable | {
+        let pool = ThreadPool::new(32);
+        let mut segment: u32 = 0;
+
+        let callback = move |tables: wasmi::tracer::TracerCompilationTable| {
             let execution_tables = ExecutionTable {
                 etable: tables.etable,
                 jtable: Arc::new(tables.jtable),
             };
 
-            let current_compilation_table= CompilationTable {
+            let current_compilation_table = CompilationTable {
                 itable: Arc::new(tables.itable.clone()),
                 imtable: tables.imtable,
                 elem_table: Arc::new(tables.elem_table.clone()),
-                configure_table:  Arc::new(tables.configure_table.clone()),
-                static_jtable:  Arc::new(tables.static_jtable.clone()),
+                configure_table: Arc::new(tables.configure_table.clone()),
+                static_jtable: Arc::new(tables.static_jtable.clone()),
                 initialization_state: tables.prev_state,
             };
 
@@ -213,12 +221,35 @@ impl<E: MultiMillerLoop> ZkWasmLoader<E> {
                 }
             };
 
-            let _tables = Tables {
+            let segment_tables = Tables {
                 compilation_tables: current_compilation_table,
                 execution_tables,
                 post_image_table,
             };
+            
+            // write to file
+            let mut dir = std::env::current_dir().unwrap();
+            dir.push(segment.to_string());
+            pool.execute(move || {
+                segment_tables.write_flexbuffers(Some(dir));
+                println!("segment {} tables has dumped!", segment);
+            });
+            segment += 1;
+            
+            // let mut wait_count = 0;
+            // while pool.queued_count() > 0 {
+            //     println!("sleep");
+            //     std::thread::sleep(std::time::Duration::from_millis(10));
+            //     wait_count += 1;
 
+            //     if wait_count % 50 == 0 {
+            //         println!("waiting for dump completion");
+            //     }
+            // }
+            
+            // if segment == 90 {
+            //     std::process::exit(0);
+            // }
         };
 
         let compiled_module = self.compile(&env, callback)?;
@@ -227,6 +258,9 @@ impl<E: MultiMillerLoop> ZkWasmLoader<E> {
 
         result.tables.profile_tables();
         result.tables.write_json(None);
+        
+        // fix me, we should be able to load written tables to reconstruct circuits of segments
+        std::process::exit(0);
 
         Ok(result)
     }
