@@ -209,6 +209,12 @@ pub struct EventTableConfig<F: FieldExt> {
     op_configs: BTreeMap<OpcodeClassPlain, Rc<Box<dyn EventTableOpcodeConfig<F>>>>,
 }
 
+macro_rules! log_cell {
+    ($var: ident) => {
+        println!("{}---------------------->{:?}, rot:{:?}", stringify!($var), $var.0.col, $var.0.rot);
+    };
+}
+
 impl<F: FieldExt> EventTableConfig<F> {
     pub(crate) fn configure(
         meta: &mut ConstraintSystem<F>,
@@ -227,12 +233,19 @@ impl<F: FieldExt> EventTableConfig<F> {
             EventTableCellAllocator::new(meta, step_sel, rtable, mtable, jtable, cols);
 
         let ops = [0; OP_CAPABILITY].map(|_| allocator.alloc_bit_cell());
+        for op in ops {
+            log_cell!(op);
+        }
         let enabled_cell = allocator.alloc_bit_cell();
 
         let rest_mops_cell = allocator.alloc_common_range_cell();
+       
         let rest_jops_cell = allocator.alloc_common_range_cell();
+        log_cell!(rest_jops_cell);
         let input_index_cell = allocator.alloc_common_range_cell();
+        log_cell!(input_index_cell);
         let context_input_index_cell = allocator.alloc_common_range_cell();
+        log_cell!(input_index_cell);
         let context_output_index_cell = allocator.alloc_common_range_cell();
         let external_host_call_index_cell = allocator.alloc_common_range_cell();
         let sp_cell = allocator.alloc_common_range_cell();

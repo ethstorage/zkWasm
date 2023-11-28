@@ -1,90 +1,26 @@
-<p align="center">
-  <img src="zkwasm-bk.png" height="100">
-</p>
+# Understanding zkWasm's Circuit layout
+In zkWasm, the arrangement of each instruction's related states occupies **4 rows** within the circuit table, defined as `instruction_rows`. Constraints are established within these four rows and between successive instruction_rows.
 
-<p align="center">
-  <a href="https://github.com/DelphinusLab/zkWasm/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache 2-blue.svg"></a>
-</p>
+| U32_Advice_Col | U32_Advice_Col | U64_Advice_Col | Bit_Advice_Col | …         | Bit_Advice_Col | U8_Advice_Col | … |
+|----------------|----------------|----------------|----------------|-----------|----------------|---------------|---|
+| curr_eid       | …              | …              |    ...         | GlobalGet | Select         |   ...         |   |
+|   frame_id   | …              | …              | LocalGet       | GlobalSet | Return         |   ...         |   |
+| …              | …              | …              | LocalSet       | Const     | Bin            |   ...         |   |
+| …              | …              | …              | LocalTee       | Drop      | Unary          |   ...         |   |
+| next_eid       | …              | …              |    ...         | ... | 
+| next_frame_id  | …              | …              |    ...         | ... | 
 
-# Overview：
+While zkWasm employs Halo2's API, it defines a custom circuit layouter with three main differences from Halo2:
 
-The mission of DelphiusLab is to provide Web2 developers with a concise toolset to leverage the power of Web3 in their applications. The ZKWASM (ZKSNARK virtual machine that supports Web Assembly) serves as a trustless layer between rich applilcations running on WASM runtime and smart contracts on chain.
+- Column Type Bounds: Each column is bound by a range constraint. This includes BitColumn, CommonRangeColumn (ranging from 0 to 1 << zkwasm_k() - 1), U16Column, U32Column, U64Column, JTableLookup, MTableLookup, etc. For ease of reference later, we collectively refer to all these columns as `TypeColumn`.
 
-WASM (or WebAssembly) is an open standard binary code format similar to assembly. Its initial objective was to provide an alternative to java-script with improved performance for the current web ecosystem. Benefiting from its platform independence, front-end flexibility (can be compiled from the majority of languages including C, C++, assembly script, rust, etc.), good isolated runtime and speed comes closer to the speed of a native binary, its usage is arising in distributed cloud and edge computing. Recently it has become a popular binary format for users to run customized functions on AWS Lambda, Open Yurt, AZURE, etc.
+- Gate Constraint Building: Constructing gate constraints involves querying related cells and creating gates. To query a cell, an `alloc` function is utilized to obtain an unused cell of a TypeColumn within the current instruction_rows (akin to a conceptual region in Halo2). Moreover, after allocating one cell, the subsequent cell of the same type will be assigned to the next cell in that column. If allocation extends beyond the fourth row, allocation restarts from the first row of the subsequent column of the same type. The code utilizes a BTreeMap named `free_cells` to record the allocation of each type of cell up to which column's first row. When creating gates for an instruction, a `constraint builder` is encapsulated and then `finalized` to call Halo2's create gate API.
 
-The idea of ZKWASM is derived from ZKSNARK (Zero-Knowledge Succinct Non-Interactive Argument of Knowledge) which is a combination of SNARG (Succinct non-interactive arguments) and zero-knowledge proof. In general, the adoption of ZKSNARK usually requires implementing a program in arithmetic circuits or circuit-friendly languages (Pinocchio, TinyRAM, Buffet/Pequin, Geppetto, xJsnark framework, ZoKrates) that forms a barrier for existing programs to leverage it's power. An alternative approach is, instead of applying ZKSNARK on the source code, applying it on the bytecode level of a virtual machine and implementing a zksnark-backed virtual machine. In this work, we take the approach of writing the whole WASM virtual machine in ZKSNARK circuits so that existing WASM applications can benefit from ZKSNARK by simply running on the ZKWASM, without any modification. Therefore, the cloud service provider can prove to any user that the computation result is computed honestly and no private information is leaked.
+- Lookup: During a lookup, zkWasm encodes cells to be looked up into an auxiliary cell and constrains the encoding equation. Then, it looks up the auxiliary cell in another table's encoded cell. An example is the `op_br` instruction's `encode_memory_table_entry`.
 
+For instance, let's consider `etable`. A `log_cell` macro has been integrated into the etable code to log the location of cells by their col and row.
 
-# Circuit Details:
-https://jhc.sjtu.edu.cn/~hongfeifu/manuscriptb.pdf
-
-# Quick start with ZKWASM command line
-
-## Dependency
-
-Make sure the following packages are installed.
+After running the following simple test case, the cell's Column and Rotation will be printed.
 ```
-clang lld
+cargo test test_uniform_verifier -- --show-output
 ```
-
-## Setup input:
-wasm code
-
-## Runtime input:
-input of wasm function and the top level function must be main.
-
-## Proving target:
-simulation of wasm execution of target wasm bytecode with particular inputs are correct.
-
-# Command line:
-## Setup via WASM image:
-```
-cargo run --release -- --function <FUNCTION_NAME> --wasm <WASM_BINARY> setup [OPTIONS]
-```
-
-## Single prove and verify:
-```
-cargo run --release -- --function <FUNCTION_NAME> --wasm <WASM_BINARY> single-prove [OPTIONS]
-cargo run --release -- --function <FUNCTION_NAME> --wasm <WASM_BINARY> single-verify [OPTIONS] --proof <PROOF_PATH>
-```
-with OPTIONS:
-```
-    -o, --output [<OUTPUT_PATH>...]
-            Path of the output files.
-            The md5 of the wasm binary file is the default path if not supplied.
-
-        --private [<PRIVATE_INPUT>...]
-            Private arguments of your wasm program arguments of format value:type where
-            type=i64|bytes|bytes-packed, multiple values should be separated with ' ' (space)
-
-        --public [<PUBLIC_INPUT>...]
-            Public arguments of your wasm program arguments of format value:type where
-            type=i64|bytes|bytes-packed, multiple values should be separated with ' ' (space)
-```
-## Batch prove and verify:
-```
-cargo run --release -- --function <FUNCTION_NAME> --wasm <WASM_BINARY> aggregate-prove [OPTIONS]
-cargo run --release -- --function <FUNCTION_NAME> --wasm <WASM_BINARY> aggregate-verify --proof <PROOF_PATH> --instances <AGGREGATE_INSTANCE_PATH>
-```
-
-## Generate verify contract:
-```
-cargo run --release --function <FUNCTION_NAME> --wasm <WASM_BINARY> solidity-aggregate-verifier --proof <PROOF_PATH> --instances <AGGREGATE_INSTANCE_PATH>
-```
-
-# Operations Spec [WIP]
-We uses z3 (https://github.com/Z3Prover/z3) to check that all operation are compiled to zkp circuits correctly.
-
-[This is a WIP project, only sample code are provided here. Please contact xgao@zoyoe.com for state circuit customization and application integration. 
-
-# Issue tracking:
-* chore: non-feature requirements such as CI/CD, building script or work flow enhancement.
-* feat: feature need, we could use feat(circuit), feat(lang), feat(CLI) to categorize features
-* bug: bug report, we also could use bug(circuit), bug(lang) to categorize bugs
-* doc: documents related issues.
-
-# Project Bootstrap:
-* C project: There is a project template for compiling C to wasm with limited host functions (foreign circuits). (see https://github.com/DelphinusLab/zkWasm-C)
-* Rust project demo: https://github.com/xgaozoyoe/zkWasm-Rust-Demo
-* Assembly script demo: https://github.com/DelphinusLab/zkWasm-AssemblyScript-Demo
-* Browser based project: See https://github.com/zkcrossteam/g1024/ for how to utilizing zkWASM in javascript, how to generate proofs using PAAS service and verify it on chain (contact xgao@zoyoe.com for details about PAAS testnet).
