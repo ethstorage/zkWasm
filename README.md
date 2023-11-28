@@ -1,5 +1,5 @@
 # Understanding zkWasm's Circuit layout
-In zkWasm, the arrangement of each instruction's related states occupies **4 rows** within the circuit table, defined as `instruction_rows`. Constraints are established within these four rows and between successive instruction_rows.
+In zkWasm, the arrangement of each instruction's related states occupies **4 rows** within the circuit table, defined as `instruction_rows`. Constraints are established within these four rows and between successive instruction_rows. See the code [here](./crates/zkwasm/src/circuits/etable/mod.rs#L219).
 
 | U32_Advice_Col | U32_Advice_Col | U64_Advice_Col | Bit_Advice_Col | …         | Bit_Advice_Col | U8_Advice_Col | … |
 |----------------|----------------|----------------|----------------|-----------|----------------|---------------|---|
