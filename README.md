@@ -24,3 +24,23 @@ After running the following simple test case, the cell's Column and Rotation wil
 ```
 cargo test test_uniform_verifier -- --show-output
 ```
+
+# Instruction Circuits
+## `i32.Add`` Instruction
+`i32.Add` instruction is one typical [`binop`](https://webassembly.github.io/spec/core/exec/instructions.html#t-mathsf-xref-syntax-instructions-syntax-binop-mathit-binop) in wasm, it will execute the following:
+1. pop value `lhs` from the stack 
+2. pop value `rhs` from the stack 
+3. compute `res = lhs + rhs`
+4. push value `res` to the stack
+
+Based on the op code definition, the constraints are defined as:
+$$
+lhs + rhs - res + isoverflow * 1<<32 = 0 \\
+iaddr.curr + 1 - iaddr.next = 0 \\
+sp.curr + 1 - sp.next = 0
+Plookup(MemoryTable, (StackType, read, sp.curr + 1, rhs)) = 0
+Plookup(MemoryTable, (StackType, read, sp.curr + 2, lhs)) = 0
+Plookup(MemoryTable, (StackType, write, sp.curr + 1, res)) = 0
+$$
+
+### Wasm 
