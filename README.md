@@ -27,7 +27,7 @@ cargo test test_uniform_verifier -- --show-output
 
 # Instruction Circuits
 ## Numeric Instructions: `i32.Add`
-The i32.Add instruction in WebAssembly is a typical binary operation `binop`([wasm spec](https://webassembly.github.io/spec/core/exec/instructions.html#t-mathsf-xref-syntax-instructions-syntax-binop-mathit-binop)). zkWasm's implementation of `Call` is [here](./third-party/wasmi/src/runner.rs#L2716). Its execution involves several steps:
+The i32.Add instruction in WebAssembly is a typical binary operation `binop`([wasm spec](https://webassembly.github.io/spec/core/exec/instructions.html#t-mathsf-xref-syntax-instructions-syntax-binop-mathit-binop)). zkWasm's implementation of `Call` is [here](https://github.com/DelphinusLab/wasmi/blob/99157e5054d3559a89843890faefca01d1bf8444/src/runner.rs#L2716). Its execution involves several steps:
 
 1. Pop the value lhs from the stack.
 2. Pop the value rhs from the stack.
@@ -65,7 +65,7 @@ These configurations and constraints collectively ensure the correct handling of
 ## Control Flow Instructions: `Call` and `Return` 
 
 ### `Call` instruction
-Wasm's `Call` instruction [spec](https://webassembly.github.io/spec/core/exec/instructions.html#xref-syntax-instructions-syntax-instr-control-mathsf-call-x) is simple, zkWasm's implementation of `Call` is [here](./third-party/wasmi/src/runner.rs#L2127).  It involves 3 constraints:
+Wasm's `Call` instruction [spec](https://webassembly.github.io/spec/core/exec/instructions.html#xref-syntax-instructions-syntax-instr-control-mathsf-call-x) is simple, zkWasm's implementation of `Call` is [here](https://github.com/DelphinusLab/wasmi/blob/99157e5054d3559a89843890faefca01d1bf8444/src/runner.rs#L2127).  It involves 3 constraints:
 
 ![call image](./images/call.png)
 
@@ -96,7 +96,7 @@ Wasm's `Call` instruction [spec](https://webassembly.github.io/spec/core/exec/in
 
 ### `Return` instruction
 
-Wasm's `Return` instruction [spec](https://webassembly.github.io/spec/core/exec/instructions.html#xref-syntax-instructions-syntax-instr-control-mathsf-return) is a bit more complicated compared to `Call`. Especially, wasm current doesn't support multiple returns. Follow zkWasm interpreter's [`Return` implementation](./third-party/wasmi/src/runner.rs/2062), `self.value_stack.drop_keep(drop_keep)` is the most important part. So, according to the implementation, `Return` involves the following constraints:
+Wasm's `Return` instruction [spec](https://webassembly.github.io/spec/core/exec/instructions.html#xref-syntax-instructions-syntax-instr-control-mathsf-return) is a bit more complicated compared to `Call`. Especially, wasm current doesn't support multiple returns. Follow zkWasm interpreter's [`Return` implementation](https://github.com/DelphinusLab/wasmi/blob/99157e5054d3559a89843890faefca01d1bf8444/src/runner.rs#L2062), `self.value_stack.drop_keep(drop_keep)` is the most important part. So, according to the implementation, `Return` involves the following constraints:
 
 ```
 | prev call frame  |
@@ -128,7 +128,7 @@ Wasm's `Return` instruction [spec](https://webassembly.github.io/spec/core/exec/
 
 ## Memory (Stack, Global) Instructions: Heap `load` 
 
-Wasm's heap load instruction specification can be found [here](https://webassembly.github.io/spec/core/exec/instructions.html#t-mathsf-xref-syntax-instructions-syntax-instr-memory-mathsf-load-xref-syntax-instructions-syntax-memarg-mathit-memarg-and-t-mathsf-xref-syntax-instructions-syntax-instr-memory-mathsf-load-n-mathsf-xref-syntax-instructions-syntax-sx-mathit-sx-xref-syntax-instructions-syntax-memarg-mathit-memarg). However, due to zkWasm's utilization of a 64-bit word size to adhere to the specification, the 64-bit word-length rw_table introduces not one, but two memory-word-length constraints when performing cross-block reads and writes (refer to [related implementation](./third-party/wasmi/src/runner.rs#L1130) in zkwasm's interpreter). Consequently, the load instruction for the heap primarily encounters the following constraints:
+Wasm's heap load instruction specification can be found [here](https://webassembly.github.io/spec/core/exec/instructions.html#t-mathsf-xref-syntax-instructions-syntax-instr-memory-mathsf-load-xref-syntax-instructions-syntax-memarg-mathit-memarg-and-t-mathsf-xref-syntax-instructions-syntax-instr-memory-mathsf-load-n-mathsf-xref-syntax-instructions-syntax-sx-mathit-sx-xref-syntax-instructions-syntax-memarg-mathit-memarg). However, due to zkWasm's utilization of a 64-bit word size to adhere to the specification, the 64-bit word-length rw_table introduces not one, but two memory-word-length constraints when performing cross-block reads and writes (refer to [related implementation](https://github.com/DelphinusLab/wasmi/blob/99157e5054d3559a89843890faefca01d1bf8444/src/runner.rs#L1130) in zkwasm's interpreter). Consequently, the load instruction for the heap primarily encounters the following constraints:
 
 1. MemoryTable Read Constraints:
     `Plookup(MemoryTable, (HeapType, load_block)) = 0`
