@@ -26,21 +26,117 @@ cargo test test_uniform_verifier -- --show-output
 ```
 
 # Instruction Circuits
-## `i32.Add`` Instruction
-`i32.Add` instruction is one typical [`binop`](https://webassembly.github.io/spec/core/exec/instructions.html#t-mathsf-xref-syntax-instructions-syntax-binop-mathit-binop) in wasm, it will execute the following:
-1. pop value `lhs` from the stack 
-2. pop value `rhs` from the stack 
-3. compute `res = lhs + rhs`
-4. push value `res` to the stack
+## Numeric Instructions: `i32.Add`
+The i32.Add instruction in WebAssembly is a typical binary operation `binop`([wasm spec](https://webassembly.github.io/spec/core/exec/instructions.html#t-mathsf-xref-syntax-instructions-syntax-binop-mathit-binop)). zkWasm's implementation of `Call` is [here](./third-party/wasmi/src/runner.rs#2716). Its execution involves several steps:
 
-Based on the op code definition, the constraints are defined as:
-$$
-lhs + rhs - res + isoverflow * 1<<32 = 0 \\
-iaddr.curr + 1 - iaddr.next = 0 \\
-sp.curr + 1 - sp.next = 0
-Plookup(MemoryTable, (StackType, read, sp.curr + 1, rhs)) = 0
-Plookup(MemoryTable, (StackType, read, sp.curr + 2, lhs)) = 0
-Plookup(MemoryTable, (StackType, write, sp.curr + 1, res)) = 0
-$$
+1. Pop the value lhs from the stack.
+2. Pop the value rhs from the stack.
+3. Compute the result res = lhs + rhs.
+4. Push the value res onto the stack.
 
-### Wasm 
+The constraints associated with this operation are defined by mathematical equations and rules to ensure correct execution within the WebAssembly framework. These constraints can be summarized as follows:
+
+1. Mathematical Equation Constraint:
+    `lhs + rhs − res + isoverflow * 1<<32 = 0`
+    This equation ensures that the arithmetic operation is correct even when overflow happens.  The `add gate` circuit is defined [here](./crates/zkwasm/src/circuits/etable/op_configure/op_bin.rs#168).
+
+2. Instruction Address Constraint:
+    `iaddr.curr + 1 − iaddr.next = 0`.
+    - This constraint manages the flow of instructions within the WebAssembly execution and maintain the order of operations. 
+    - The circuits pertaining to the stack pointer (`sp`) and instruction addresses (`iaddr`) in zkwasm are situated within the same context as [other instructions](./crates/zkwasm/src/circuits/etable/mod.rs#491). 
+    - The `iaddr` tuple comprises the modular ID (`moid`), memory block instance ID (`mmid`), function ID (`fid`), and instruction offset within a specific function (`iid`). Given that `moid` and `mmid` remain constant, only [`fid` and `iid` are constrained](./crates/zkwasm/src/circuits/etable/mod.rs#542) within zkwasm to ensure the proper execution flow and adherence to WebAssembly's specifications.
+    
+3. Stack Pointer Constraint:
+    `sp.curr + 1 - sp.next = 0`
+    As the WebAssembly stack grows downwards, these constraints handle the stack pointer adjustments after popping or pushing values onto the stack.
+
+4. Memory Table Constraints:
+    ```
+    Plookup(MemoryTable, (StackType, read, sp.curr + 1, rhs)) = 0
+    Plookup(MemoryTable, (StackType, read, sp.curr + 2, lhs)) = 0
+    Plookup(MemoryTable, (StackType, write, sp.curr + 2, res)) = 0
+    ```
+    - These constraints ensure proper memory table lookups and operations related to the stack values involved in the `i32.Add` instruction. 
+    - Note that the stack pointer for the resulting value `res` is determined as `sp.curr + 2`. This adjustment is due to the nature of WebAssembly's stack, which **grows downwards**. Consequently, when an item is popped from the stack, the stack pointer effectively decreases by 1. 
+    - This behavior is reflected in the [implementation of the WebAssembly interpreter](./third-party/wasmi/wasmi_v1/src/engine/value_stack.rs#186). Circuit for 3 Plookups's encoded cells for lookup are defined [here](./crates/zkwasm/src/circuits/etable/op_configure/op_bin.rs#106) 
+
+These configurations and constraints collectively ensure the correct handling of binary operations, including i32.Add, within the zkwasm framework, aligning with WebAssembly's stack behavior and execution requirements.
+
+## Control Flow Instructions: `Call` and `Return` 
+
+### `Call` instruction
+Wasm's `Call` instruction [spec](https://webassembly.github.io/spec/core/exec/instructions.html#xref-syntax-instructions-syntax-instr-control-mathsf-call-x) is simple, zkWasm's implementation of `Call` is [here](./third-party/wasmi/src/runner.rs#2127).  It involves 3 constraints:
+
+![call image](./images/call.png)
+
+1. Instruction Address Constraint:
+    `iaddr.curr − iaddr.next = 0`
+    This makes sure that the next instruction addr is call instruction's target jump addr. This constrain involves [`next_fid` and `next_iid` function](./crates/zkwasm/src/circuits/etable/op_configure/op_call.rs#113), [`fid change` gate and `iid change` gate](./crates/zkwasm/src/circuits/etable/mod.rs#542).
+
+2. Stack Pointer Constraint:
+    `sp.curr - sp.next = 0`
+    This ensures there is no stack change. This constrain is [implemented](.crates/zkwasm/src/circuits/etable/mod.rs#491) along with other instructions. 
+
+3. Call Frame Constraint:
+    `eid.curr - frame_id.next = 0`
+    This ensures the following instruction's previous call frame is the current call frame. This constrain involves [`next_frame_id` function](./crates/zkwasm/src/circuits/etable/op_configure/op_call.rs#113) and [`frame_id change` gate](./crates/zkwasm/src/circuits/etable/mod.rs#568).
+
+4. Frame Table Constraints:
+    ```
+    Plookup(FrameTable, (
+        eid: currentFrame, 
+        frame_id_cell: prevFrame, 
+        index_cell: iaddr.next.fid, 
+        fid_cell: iaddr.curr.fid, 
+        iid_cell: iaddr.curr.iid + 1)
+    )
+    ```
+    This helps us to find out the next `iaddr` of `Return` instruction, which should be offset by 1 compared to that of current `Call` instruction. Also, it constrains that `Call` instruction's next instruction should be in the same call frame with the corresponding `Return instruction`.
+    And, the corresponding lookup constraint is [here](./crates/zkwasm/src/circuits/etable/op_configure/op_call.rs#43). 
+
+### `Return` instruction
+
+Wasm's `Return` instruction [spec](https://webassembly.github.io/spec/core/exec/instructions.html#xref-syntax-instructions-syntax-instr-control-mathsf-return) is a bit more complicated compared to `Call`. Especially, wasm current doesn't support multiple returns. Follow zkWasm interpreter's [`Return` implementation](./third-party/wasmi/src/runner.rs/2062), `self.value_stack.drop_keep(drop_keep)` is the most important part. So, according to the implementation, `Return` involves the following constraints:
+
+```
+| prev call frame  |
+| curr call frame  |  <-- write 1 kept value to next call frame (sp + drop + 1)
+|  - arg 1         |        |
+|  - arg 2         |        |
++------------------+        |
+| callee locals    |        | <-- the number of dropped values is `drop`
+|  - var 1         |        |
+|  - var 2         |        |
++------------------+        |
+| operands         |        |
+|  - op 1          |        |
+|  top value       |  <-- kept value (sp + 1)
+|  return          |  <-- current stack pointer (sp)
++------------------+
+```
+
+1. MemoryTable Read Constraint:
+    `Plookup(MemoryTable, (StackType, sp.curr + 1, return_value)) keep = 0`. 
+    The above constrain is enabled when `keep = 1`, which means the **top** value will be kept before "discarding" the current stack frame. The circuit of encoded cell for lookup is defined [here](./crates/zkwasm/src/circuits/etable/op_configure/op_return.rs#62).
+
+2. MemoryTable Write Constraint:
+    `Plookup(MemoryTable, (StackType, sp.curr + 1, return_value)) keep = 0`. 
+    The above constrain is enabled when `keep = 1`. This ensures the kept value written to top of the next stack frame. The circuit of encoded cell for lookup is defined [here](./crates/zkwasm/src/circuits/etable/op_configure/op_return.rs#72).
+
+3. FrameTable Constraint:
+    This ensures `Return` instruction finds the correct `next` instruction. It's the same as the corresponding `Call` instruction. The circuit of encoded cell for lookup is defined [here](./crates/zkwasm/src/circuits/etable/op_configure/op_return.rs#83)
+
+## Memory (Stack, Global) Instructions: Heap `load` 
+
+Wasm's heap load instruction specification can be found [here](https://webassembly.github.io/spec/core/exec/instructions.html#t-mathsf-xref-syntax-instructions-syntax-instr-memory-mathsf-load-xref-syntax-instructions-syntax-memarg-mathit-memarg-and-t-mathsf-xref-syntax-instructions-syntax-instr-memory-mathsf-load-n-mathsf-xref-syntax-instructions-syntax-sx-mathit-sx-xref-syntax-instructions-syntax-memarg-mathit-memarg). However, due to zkWasm's utilization of a 64-bit word size to adhere to the specification, the 64-bit word-length rw_table introduces not one, but two memory-word-length constraints when performing cross-block reads and writes (refer to [related implementation](./third-party/wasmi/src/runner.rs#1130) in zkwasm's interpreter). Consequently, the load instruction for the heap primarily encounters the following constraints:
+
+1. MemoryTable Read Constraints:
+    `Plookup(MemoryTable, (HeapType, load_block)) = 0`
+    `Plookup(MemoryTable, (HeapType, load_block + 1)) = 0`
+    This ensures memory are loaded from specific offset(load_block and the next block) in heap. The circuit of encoded cell for lookup is defined [here](crates/zkwasm/src/circuits/etable/op_configure/op_load.rs#149).
+
+2. MemoryTable Write Constraint:
+    `Plookup(MemoryTable, (Stack, load_block)) = 0`
+    This ensures the heap/stack/global loaded value are written to the value stack. The circuit of encoded cell for lookup is defined [here](crates/zkwasm/src/circuits/etable/op_configure/op_load.rs#171).
+
+3. Other constraints such as the length, offset, loaded value size check, etc.
