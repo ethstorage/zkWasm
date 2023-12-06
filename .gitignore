@@ -4,3 +4,4 @@
 /output
 crates/playground/wasm
 crates/playground/target
+Cargo.lock
