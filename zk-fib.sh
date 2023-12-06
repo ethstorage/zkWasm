@@ -1,4 +1,7 @@
-## Usgae zk-fib.sh fib 10 55
+## USAGE
+## wat2wasm fib.wat
+## ./zk-fib.sh fib 10 55
+## ESTIMATE
 ## fib 10 55 -> eid 208
 ## fib 20 65 -> eid 398
 ## fib(n) = m
