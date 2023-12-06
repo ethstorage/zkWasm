@@ -1,4 +1,10 @@
 ## Usgae zk-fib.sh fib 10 55
+## fib 10 55 -> eid 208
+## fib 20 65 -> eid 398
+## fib(n) = m
+## formula y = 19*n + 18
+## verify on fib 30 40 -> eid 588
+## it indeed goes in linear
 
 filename=$1
 input_n=$2

@@ -341,6 +341,8 @@ impl<F: FieldExt> EventTableChip<F> {
         fid_of_entry: u32,
     ) -> Result<EventTablePermutationCells, Error> {
         debug!("size of execution table: {}", event_table.0.len());
+        log::info!("size of execution table: {} last eid {}", event_table.0.len(), event_table.0.last().unwrap().eentry.eid);
+
         assert!(event_table.0.len() * EVENT_TABLE_ENTRY_ROWS as usize <= self.max_available_rows);
 
         let rest_ops =

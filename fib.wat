@@ -10,7 +10,7 @@
     call $wasm_input
   )
   (func $fibonacci (param $var0 i64) (result i64)
-    (local $var1 i64) (local $var2 i64) (local $var3 i64) (local $var4 i64) 
+    (local $var1 i32) (local $var2 i32) (local $var3 i32) (local $var4 i64) 
     i64.const 1
     local.set $var4
     block $label0
@@ -23,26 +23,33 @@
         i64.const 1
         i64.eq
         br_if $label1
-        i64.const 0
+        local.get $var0
+        i64.const -1
+        i64.add
+        local.set $var0
+        i32.const 0
         local.set $var3
-        i64.const 1
+        i32.const 1
         local.set $var2
-        i64.const 1
-        local.set $var4
         loop $label2
-          local.get $var4
+          local.get $var2
           local.tee $var1
           local.get $var3
-          i64.add
-          local.set $var4
+          i32.add
+          i64.extend_s/i32
+          i64.const 100
+          i64.rem_s
+          local.tee $var4
+          i32.wrap/i64
+          local.set $var2
           local.get $var1
           local.set $var3
-          local.get $var2
-          i64.const 1
-          i64.add
-          local.tee $var2
           local.get $var0
-          i64.lt_s
+          i64.const -1
+          i64.add
+          local.tee $var0
+          i64.const 0
+          i64.ne
           br_if $label2
         end $label2
       end $label1
