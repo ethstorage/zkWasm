@@ -6,6 +6,7 @@ use crate::foreign::log_helper::register_log_foreign;
 use crate::foreign::require_helper::register_require_foreign;
 use crate::foreign::wasm_input_helper::runtime::register_wasm_input_foreign;
 use crate::runtime::wasmi_interpreter::WasmRuntimeIO;
+use crate::foreign::hash_helper::poseidon;
 use specs::args::parse_args;
 
 use super::host_env::HostEnv;
@@ -54,6 +55,7 @@ impl HostEnvBuilder for DefaultHostEnvBuilder {
         register_require_foreign(&mut env);
         register_log_foreign(&mut env);
         register_context_foreign(&mut env, vec![], Arc::new(Mutex::new(vec![])));
+        poseidon::register_poseidon_foreign(&mut env);
         env.finalize();
 
         (env, wasm_runtime_io)
@@ -66,6 +68,7 @@ impl HostEnvBuilder for DefaultHostEnvBuilder {
         register_require_foreign(&mut env);
         register_log_foreign(&mut env);
         register_context_foreign(&mut env, arg.context_inputs, arg.context_outputs);
+        poseidon::register_poseidon_foreign(&mut env);
         env.finalize();
 
         (env, wasm_runtime_io)

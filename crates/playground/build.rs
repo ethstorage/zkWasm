@@ -39,6 +39,7 @@ fn main() -> Result<(), std::io::Error> {
     compile_c!("fibonacci");
     compile_c!("binary_search");
     compile_c!("context");
+    compile_c!("poseidon");
 
     Ok(())
 }

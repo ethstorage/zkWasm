@@ -23,4 +23,8 @@ extern void require(uint32_t);
 extern uint64_t wasm_read_context();
 extern void wasm_write_context(uint64_t);
 
+extern void poseidon_new(uint64_t);
+extern void poseidon_push(uint64_t);
+extern uint64_t poseidon_finalize();
+extern void wasm_dbg(uint64_t);
 #endif

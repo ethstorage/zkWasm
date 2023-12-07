@@ -13,6 +13,7 @@ pub mod context;
 pub mod log_helper;
 pub mod require_helper;
 pub mod wasm_input_helper;
+pub mod hash_helper;
 
 pub fn foreign_table_enable_lines() -> usize {
     1 << (zkwasm_k() - 1)
