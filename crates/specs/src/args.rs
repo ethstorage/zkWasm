@@ -49,7 +49,7 @@ pub fn parse_args(values: Vec<&str>) -> Vec<u64> {
                             let mut data = [0u8; 8];
                             data[..x.len()].copy_from_slice(x);
 
-                            u64::from_be_bytes(data)
+                            u64::from_le_bytes(data)
                         })
                         .collect()
                 }
