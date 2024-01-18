@@ -260,6 +260,7 @@ impl<F: FieldExt> Circuit<F> for TestCircuit<F> {
                     || "Assign etable",
                     echip.assign(
                         &mut ctx,
+                        &self.tables.compilation_tables.itable,
                         &etable,
                         &self.tables.compilation_tables.configure_table,
                         &self.tables.compilation_tables.initialization_state,
@@ -318,7 +319,7 @@ impl<F: FieldExt> Circuit<F> for TestCircuit<F> {
 
         let mut image_table_assigner = ImageTableAssigner::new(
             // Add one for default lookup value
-            self.tables.compilation_tables.itable.entries().len() + 1,
+            self.tables.compilation_tables.itable.len() + 1,
             self.tables.compilation_tables.br_table.entries().len()
                 + self.tables.compilation_tables.elem_table.entries().len()
                 + 1,

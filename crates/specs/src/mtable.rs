@@ -2,8 +2,6 @@ use serde::Deserialize;
 use serde::Serialize;
 use strum_macros::EnumIter;
 
-use crate::imtable::InitMemoryTable;
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Hash)]
 pub enum LocationType {
     Stack = 1,

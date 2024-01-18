@@ -416,7 +416,7 @@ impl Into<BigUint> for &Opcode {
             Opcode::InternalHostCall {
                 op_index_in_plugin, ..
             } => {
-                let opcode_class_plain: OpcodeClassPlain = (&self).into();
+                let opcode_class_plain: OpcodeClassPlain = self.into();
 
                 (BigUint::from(opcode_class_plain.0) << OPCODE_CLASS_SHIFT)
                     + (BigUint::from(*op_index_in_plugin as u64))
@@ -640,7 +640,7 @@ impl InstructionTableInternal {
 }
 
 // Use Option because iid may be discontinuous
-#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct InstructionTable(Arc<Vec<Vec<Option<InstructionTableEntry>>>>);
 
 impl InstructionTable {
@@ -677,6 +677,10 @@ impl InstructionTable {
             .collect();
 
         BrTable::new(entries.concat())
+    }
+
+    pub fn len(&self) -> usize {
+        self.iter().count()
     }
 }
 

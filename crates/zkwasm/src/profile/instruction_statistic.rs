@@ -32,7 +32,7 @@ impl InstructionStatistic for Tables {
                 counter.mentries.append(&mut mentries);
             } else {
                 map.insert(
-                    (&entry.inst.opcode).into(),
+                    opcode.into(),
                     Counter {
                         counter: 1,
                         mentries,

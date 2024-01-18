@@ -11,16 +11,6 @@ use specs::encode::image_table::ImageTableEncoder;
 use super::ImageTableConfig;
 
 impl<F: FieldExt> ImageTableConfig<F> {
-    fn expr(&self, meta: &mut VirtualCells<F>) -> Expression<F> {
-        cfg_if::cfg_if! {
-            if #[cfg(feature="uniform-circuit")] {
-                crate::curr!(meta, self.col)
-            } else {
-                crate::fixed_curr!(meta, self.col)
-            }
-        }
-    }
-
     pub(in crate::circuits) fn configure(
         meta: &mut ConstraintSystem<F>,
         memory_addr_sel: Option<Column<Fixed>>,
@@ -74,7 +64,7 @@ impl<F: FieldExt> ImageTableConfig<F> {
                 (addr, fixed_curr!(meta, self.memory_addr_sel.unwrap())),
                 (
                     ImageTableEncoder::InitMemory.encode(encode),
-                    curr!(meta, self.col),
+                    self.expr(meta),
                 ),
             ]
         });

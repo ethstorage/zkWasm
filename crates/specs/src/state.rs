@@ -1,6 +1,8 @@
+use serde::Deserialize;
 use serde::Serialize;
 
-#[derive(Clone, Debug, Serialize)]
+#[cfg(feature = "continuation")]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InitializationState<T> {
     pub eid: T,
     pub fid: T,
@@ -16,8 +18,25 @@ pub struct InitializationState<T> {
     pub initial_memory_pages: T,
     pub maximal_memory_pages: T,
 
-    #[cfg(feature = "continuation")]
     pub jops: T,
+}
+
+#[cfg(not(feature = "continuation"))]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct InitializationState<T> {
+    pub eid: T,
+    pub fid: T,
+    pub iid: T,
+    pub frame_id: T,
+    pub sp: T,
+
+    pub host_public_inputs: T,
+    pub context_in_index: T,
+    pub context_out_index: T,
+    pub external_host_call_call_index: T,
+
+    pub initial_memory_pages: T,
+    pub maximal_memory_pages: T,
 }
 
 impl<T> InitializationState<T> {

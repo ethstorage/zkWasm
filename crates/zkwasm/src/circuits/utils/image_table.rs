@@ -231,9 +231,9 @@ impl<F: FieldExt> EncodeCompilationTableValues<F> for CompilationTable {
                 &ImageTableEncoder::Instruction.encode(BigUint::from(0u64)),
             ));
 
-            for e in self.itable.entries() {
+            for e in self.itable.iter() {
                 cells.push(bn_to_field(
-                    &ImageTableEncoder::Instruction.encode(e.encode()),
+                    &ImageTableEncoder::Instruction.encode(e.encode.clone()),
                 ));
             }
 
@@ -300,7 +300,7 @@ impl<F: FieldExt> EncodeCompilationTableValues<F> for CompilationTable {
         };
 
         let mut assigner = ImageTableAssigner::new(
-            self.itable.entries().len() + 1,
+            self.itable.len() + 1,
             self.br_table.entries().len() + self.elem_table.entries().len() + 1,
             page_capability,
         );

@@ -2,7 +2,6 @@ use specs::etable::EventTableEntry;
 use specs::host_function::HostPlugin;
 use specs::imtable::InitMemoryTable;
 use specs::imtable::InitMemoryTableEntry;
-use specs::itable::Opcode;
 use specs::mtable::AccessType;
 use specs::state::InitializationState;
 use specs::step::StepInfo;
@@ -107,7 +106,7 @@ impl UpdateCompilationTable for CompilationTable {
                 frame_id: 0,
                 // TODO: why not constant 4095?
                 sp: last_entry.sp
-                    + if let Opcode::Return { drop, .. } = last_entry.inst.opcode {
+                    + if let StepInfo::Return { drop, .. } = last_entry.step_info {
                         drop
                     } else {
                         0
@@ -127,8 +126,8 @@ impl UpdateCompilationTable for CompilationTable {
         } else {
             InitializationState {
                 eid: last_entry.eid,
-                fid: last_entry.inst.fid,
-                iid: last_entry.inst.iid,
+                fid: last_entry.fid,
+                iid: last_entry.iid,
                 frame_id: last_entry.last_jump_eid,
                 sp: last_entry.sp,
 

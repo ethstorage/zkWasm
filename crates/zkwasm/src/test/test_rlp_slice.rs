@@ -1,8 +1,6 @@
-use std::sync::Arc;
-use std::sync::Mutex;
-
-use crate::loader::ExecutionArg;
+use crate::foreign::context::ContextOutput;
 use crate::loader::ZkWasmLoader;
+use crate::runtime::host::default_env::ExecutionArg;
 
 use anyhow::Result;
 use halo2_proofs::pairing::bn256::Bn256;
@@ -147,14 +145,18 @@ fn test_slices() -> Result<()> {
 
     let wasm = std::fs::read("wasm/rlp.wasm").unwrap();
 
-    let loader = ZkWasmLoader::<Bn256>::new(18, wasm, vec![])?;
+    let loader = ZkWasmLoader::<Bn256, _, _>::new(18, wasm, vec![])?;
 
-    let execution_result = loader.run(ExecutionArg {
-        public_inputs,
-        private_inputs,
-        context_inputs: vec![],
-        context_outputs: Arc::new(Mutex::new(vec![])),
-    })?;
+    let execution_result = loader.run(
+        ExecutionArg {
+            public_inputs,
+            private_inputs,
+            context_inputs: vec![],
+            context_outputs: ContextOutput::default(),
+        },
+        (),
+        false,
+    )?;
 
     let instances = execution_result
         .public_inputs_and_outputs

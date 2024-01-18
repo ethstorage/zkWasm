@@ -3,11 +3,14 @@ use wasmi::RuntimeValue;
 
 use crate::circuits::etable::EVENT_TABLE_ENTRY_ROWS;
 use crate::loader::ZkWasmLoader;
+use crate::runtime::host::HostEnvBuilder;
 use crate::runtime::ExecutionResult;
 
 use super::slice::Slices;
 
-impl<E: MultiMillerLoop> ZkWasmLoader<E> {
+impl<E: MultiMillerLoop, Arg, EnvBuilder: HostEnvBuilder<Arg = Arg>>
+    ZkWasmLoader<E, Arg, EnvBuilder>
+{
     pub(crate) fn compute_slice_capability(&self) -> usize {
         ((1 << self.k) - 200) / EVENT_TABLE_ENTRY_ROWS as usize
     }

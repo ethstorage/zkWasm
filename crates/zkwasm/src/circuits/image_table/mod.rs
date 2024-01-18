@@ -1,11 +1,11 @@
 use halo2_proofs::arithmetic::FieldExt;
+#[cfg(feature = "uniform-circuit")]
+use halo2_proofs::plonk::Advice;
 use halo2_proofs::plonk::Column;
 use halo2_proofs::plonk::Expression;
 use halo2_proofs::plonk::Fixed;
 use halo2_proofs::plonk::VirtualCells;
 use std::marker::PhantomData;
-
-use crate::curr;
 
 use super::test_circuit::RESERVE_ROWS;
 use super::utils::image_table::GLOBAL_CAPABILITY;
@@ -43,16 +43,22 @@ pub fn compute_maximal_pages(k: u32) -> u32 {
 #[derive(Clone)]
 pub struct ImageTableConfig<F: FieldExt> {
     memory_addr_sel: Option<Column<Fixed>>,
-    #[cfg(feature = "uniform_circuit")]
+    #[cfg(feature = "uniform-circuit")]
     col: Column<Advice>,
-    #[cfg(not(feature = "uniform_circuit"))]
+    #[cfg(not(feature = "uniform-circuit"))]
     col: Column<Fixed>,
     _mark: PhantomData<F>,
 }
 
 impl<F: FieldExt> ImageTableConfig<F> {
-    pub fn expr(&self, meta: &mut VirtualCells<F>) -> Expression<F> {
-        curr!(meta, self.col)
+    pub(crate) fn expr(&self, meta: &mut VirtualCells<F>) -> Expression<F> {
+        cfg_if::cfg_if! {
+            if #[cfg(feature="uniform-circuit")] {
+                crate::curr!(meta, self.col)
+            } else {
+                crate::fixed_curr!(meta, self.col)
+            }
+        }
     }
 }
 

@@ -202,7 +202,8 @@ impl Config {
 
         println!("{} Building circuit data...", style("[2/4]").bold().dim(),);
         let (verifying_key_md5, circuit_data_md5) = {
-            let circuit = loader.circuit_without_witness(EnvBuilder::HostConfig::default())?;
+            let circuit =
+                loader.circuit_without_witness(EnvBuilder::HostConfig::default(), todo!())?;
             let vkey = loader.create_vkey(&params, &circuit)?;
             let circuit_data = CircuitData::new(&params, vkey, &circuit)?;
 
@@ -236,7 +237,7 @@ impl Config {
 
         println!("{} Computing checksum...", style("[3/4]").bold().dim(),);
         let checksum = {
-            let checksum = loader.checksum(&params, EnvBuilder::HostConfig::default())?;
+            let checksum = loader.checksum(&params, todo!())?;
             assert_eq!(checksum.len(), 1);
 
             (checksum[0].x.to_string(), checksum[0].y.to_string())

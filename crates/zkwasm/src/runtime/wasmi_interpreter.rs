@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use specs::host_function::HostFunctionDesc;
+use specs::itable::InstructionTable;
 use specs::jtable::StaticFrameEntry;
 use specs::jtable::STATIC_FRAME_ENTRY_NUMBER;
 use specs::state::InitializationState;
@@ -73,6 +74,8 @@ impl Execution<RuntimeValue>
                 etable: tracer.etable.clone(),
                 jtable: Arc::new(tracer.jtable.clone()),
             }
+        } else {
+            ExecutionTable::default()
         };
 
         let updated_init_memory_table = self
@@ -92,7 +95,7 @@ impl Execution<RuntimeValue>
                     .update_initialization_state(&execution_tables.etable.entries(), true),
             }
         } else {
-            ExecutionTable::default()
+            todo!()
         };
 
         Ok(ExecutionResult {
@@ -158,7 +161,7 @@ impl WasmiRuntime {
                         enable: true,
                         frame_id: 0,
                         next_frame_id: 0,
-                        callee_fid: idx_of_start_function,
+                        callee_fid: 0, // the fid of start function is always 0,
                         fid: idx_of_entry,
                         iid: 0,
                     }
@@ -180,7 +183,7 @@ impl WasmiRuntime {
             }
         };
 
-        let itable = Arc::new(tracer.borrow().itable.clone());
+        let itable: InstructionTable = tracer.borrow().itable.clone().into();
         let imtable = tracer.borrow().imtable.finalized();
         let br_table = Arc::new(itable.create_brtable());
         let elem_table = Arc::new(tracer.borrow().elem_table.clone());
@@ -218,7 +221,7 @@ impl WasmiRuntime {
         Ok(CompiledImage {
             entry: entry.to_owned(),
             tables: CompilationTable {
-                itable,
+                itable: Arc::new(itable),
                 imtable,
                 br_table,
                 elem_table,

@@ -3,6 +3,7 @@ use halo2_proofs::circuit::AssignedCell;
 use halo2_proofs::plonk::Error;
 use log::debug;
 use specs::configure_table::ConfigureTable;
+use specs::itable::InstructionTable;
 use specs::itable::OpcodeClassPlain;
 use specs::state::InitializationState;
 use std::collections::BTreeMap;
@@ -152,9 +153,9 @@ impl<F: FieldExt> EventTableChip<F> {
                 .0
                 .iter()
                 .fold((0, 0), |(rest_mops_sum, rest_jops_sum), entry| {
-                    let op_config = op_configs
-                        .get(&((&entry.eentry.inst.opcode).into()))
-                        .unwrap();
+                    let instruction = entry.eentry.get_instruction(itable);
+
+                    let op_config = op_configs.get(&((&instruction.opcode).into())).unwrap();
 
                     (
                         rest_mops_sum + op_config.memory_writing_ops(&entry.eentry),
@@ -306,6 +307,8 @@ impl<F: FieldExt> EventTableChip<F> {
         };
 
         for (index, entry) in event_table.0.iter().enumerate() {
+            let instruction = entry.eentry.get_instruction(itable);
+
             let step_status = StepStatus {
                 current: &status[index],
                 next: &status[index + 1],
@@ -317,7 +320,7 @@ impl<F: FieldExt> EventTableChip<F> {
             };
 
             {
-                let class: OpcodeClassPlain = (&entry.eentry.inst.opcode).into();
+                let class: OpcodeClassPlain = (&instruction.opcode).into();
 
                 let op = self.config.common_config.ops[class.index()];
                 assign_advice_cell!(op, F::one());
@@ -325,12 +328,10 @@ impl<F: FieldExt> EventTableChip<F> {
 
             assign_advice!(enabled_cell, F::one());
             assign_advice!(rest_mops_cell, F::from(rest_mops as u64));
-            assign_advice!(itable_lookup_cell, bn_to_field(&entry.eentry.inst.encode()));
+            assign_advice!(itable_lookup_cell, bn_to_field(&instruction.encode));
             assign_advice!(jops_cell, F::from(jops as u64));
 
-            let op_config = op_configs
-                .get(&((&entry.eentry.inst.opcode).into()))
-                .unwrap();
+            let op_config = op_configs.get(&((&instruction.opcode).into())).unwrap();
             op_config.assign(ctx, &step_status, &entry)?;
 
             // Be careful, the function will step context.
@@ -338,8 +339,8 @@ impl<F: FieldExt> EventTableChip<F> {
                 ctx,
                 &InitializationState {
                     eid: entry.eentry.eid,
-                    fid: entry.eentry.inst.fid,
-                    iid: entry.eentry.inst.iid,
+                    fid: entry.eentry.fid,
+                    iid: entry.eentry.iid,
                     sp: entry.eentry.sp,
                     frame_id: entry.eentry.last_jump_eid,
 

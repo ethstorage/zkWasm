@@ -26,7 +26,6 @@ use crate::checksum::ImageCheckSum;
 use crate::circuits::config::init_zkwasm_runtime;
 use crate::circuits::config::set_zkwasm_k;
 use crate::circuits::image_table::compute_maximal_pages;
-use crate::circuits::image_table::IMAGE_COL_NAME;
 use crate::circuits::TestCircuit;
 use crate::circuits::ZkWasmCircuitBuilder;
 use crate::loader::err::Error;
@@ -49,7 +48,7 @@ pub struct ExecutionReturn {
 }
 
 pub struct ZkWasmLoader<E: MultiMillerLoop, Arg, EnvBuilder: HostEnvBuilder<Arg = Arg>> {
-    k: u32,
+    pub k: u32,
     module: wasmi::Module,
     phantom_functions: Vec<String>,
     _mark: PhantomData<(Arg, EnvBuilder, E)>,
@@ -108,7 +107,7 @@ impl<E: MultiMillerLoop, T, EnvBuilder: HostEnvBuilder<Arg = T>> ZkWasmLoader<E,
         envconfig: EnvBuilder::HostConfig,
         is_last_slice: bool,
     ) -> Result<TestCircuit<E::Scalar>> {
-        let (env, wasm_runtime_io) = EnvBuilder::create_env_without_value(envconfig);
+        let (env, _wasm_runtime_io) = EnvBuilder::create_env_without_value(envconfig);
 
         let compiled_module = self.compile(&env, true)?;
 
@@ -117,7 +116,7 @@ impl<E: MultiMillerLoop, T, EnvBuilder: HostEnvBuilder<Arg = T>> ZkWasmLoader<E,
                 compilation_tables: compiled_module.tables.clone(),
                 execution_tables: ExecutionTable::default(),
                 post_image_table: compiled_module.tables,
-                is_last_slice: last_slice_circuit,
+                is_last_slice,
             },
         };
 
@@ -167,8 +166,8 @@ impl<E: MultiMillerLoop, T, EnvBuilder: HostEnvBuilder<Arg = T>> ZkWasmLoader<E,
 
     pub fn checksum<'a, 'b>(
         &self,
-        image: &'b CompilationTable,
         params: &'a Params<E::G1Affine>,
+        image: &'b CompilationTable,
     ) -> Result<Vec<E::G1Affine>> {
         let table_with_params = CompilationTableWithParams {
             table: &image,
@@ -252,12 +251,11 @@ impl<E: MultiMillerLoop, T, EnvBuilder: HostEnvBuilder<Arg = T>> ZkWasmLoader<E,
 
     pub fn verify_proof(
         &self,
-        image: &CompilationTable,
+        _image: &CompilationTable,
         params: &Params<E::G1Affine>,
         vkey: VerifyingKey<E::G1Affine>,
         instances: &Vec<E::Scalar>,
         proof: Vec<u8>,
-        #[cfg(feature = "uniform-circuit")] config: EnvBuilder::HostConfig,
     ) -> Result<()> {
         let params_verifier: ParamsVerifier<E> = params.verifier(instances.len()).unwrap();
         let strategy = SingleVerifier::new(&params_verifier);
@@ -276,22 +274,24 @@ impl<E: MultiMillerLoop, T, EnvBuilder: HostEnvBuilder<Arg = T>> ZkWasmLoader<E,
             use crate::circuits::image_table::IMAGE_COL_NAME;
             use halo2_proofs::plonk::get_advice_commitments_from_transcript;
 
-            let img_col_idx = vkey
+            let _img_col_idx = vkey
                 .cs
                 .named_advices
                 .iter()
                 .find(|(k, _)| k == IMAGE_COL_NAME)
                 .unwrap()
                 .1;
-            let img_col_commitment: Vec<E::G1Affine> =
+            let _img_col_commitment: Vec<E::G1Affine> =
                 get_advice_commitments_from_transcript::<E, _, _>(
                     &vkey,
                     &mut PoseidonRead::init(&proof[..]),
                 )
                 .unwrap();
-            let checksum = self.checksum(image, params)?;
+            // let checksum = self.checksum(image, params)?;
+            todo!("compute checksum");
 
-            assert!(vec![img_col_commitment[img_col_idx as usize]] == checksum)
+            // assert!(vec![img_col_commitment[img_col_idx as usize]] == checksum)
+            todo!("assert");
         }
 
         Ok(())
