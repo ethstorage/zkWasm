@@ -259,7 +259,6 @@ impl<F: FieldExt> Circuit<F> for TestCircuit<F> {
         let (
             etable_permutation_cells,
             (rest_memory_writing_ops_cell, rest_memory_writing_ops, memory_finalized_set),
-            _static_frame_entries,
         ) = layouter.assign_region(
             || "jtable mtable etable",
             |region| {
@@ -303,15 +302,16 @@ impl<F: FieldExt> Circuit<F> for TestCircuit<F> {
                     )
                 };
 
-                let jtable_info = {
+                {
                     ctx.reset();
                     exec_with_profile!(
                         || "Assign frame table",
                         jchip.assign(
                             &mut ctx,
+                            &self.tables.compilation_tables.static_jtable,
+                            &pre_image_table_cells.static_frame_entries,
                             &self.tables.execution_tables.jtable,
                             &etable_permutation_cells.rest_jops,
-                            &self.tables.compilation_tables.static_jtable,
                         )?
                     )
                 };
@@ -321,11 +321,7 @@ impl<F: FieldExt> Circuit<F> for TestCircuit<F> {
                     exec_with_profile!(|| "Assign bit table", bit_chip.assign(&mut ctx, &etable)?);
                 }
 
-                Ok((
-                    etable_permutation_cells,
-                    rest_memory_writing_ops,
-                    jtable_info,
-                ))
+                Ok((etable_permutation_cells, rest_memory_writing_ops))
             },
         )?;
 
