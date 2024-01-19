@@ -73,22 +73,28 @@ impl<F: FieldExt> ImageTableChip<F> {
                     ctx.borrow_mut().offset = base_offset;
 
                     let initialization_state =
-                        permutation_cells.initialization_state.map(|_field| {
-                            let _offset = ctx.borrow().offset;
+                        permutation_cells.initialization_state.map(|field| {
+                            let offset = ctx.borrow().offset;
 
                             #[cfg(feature = "uniform-circuit")]
-                            _field.copy_advice(
+                            field.copy_advice(
                                 || "image table: initialization state",
                                 &mut ctx.borrow_mut().region,
                                 self.config.col,
-                                _offset,
+                                offset,
                             )?;
+                            // TODO: assign image table first then pass iamge table to etable to make code consistent
                             #[cfg(not(feature = "uniform-circuit"))]
-                            todo!("image table: initialization state");
+                            ctx.borrow_mut().region.assign_fixed(
+                                || "image table: initialization state",
+                                self.config.col,
+                                offset,
+                                || Ok(*field.value().unwrap()),
+                            )?;
 
                             ctx.borrow_mut().next();
 
-                            Ok(_field.clone())
+                            Ok(field.clone())
                         });
 
                     initialization_state.transpose()
@@ -99,36 +105,46 @@ impl<F: FieldExt> ImageTableChip<F> {
 
                     let mut cells = vec![];
 
-                    for (_enable, _entry) in &permutation_cells.static_frame_entries {
-                        let _offset = ctx.borrow().offset;
+                    for (enable, entry) in &permutation_cells.static_frame_entries {
+                        let offset = ctx.borrow().offset;
 
                         #[cfg(feature = "uniform-circuit")]
-                        _enable.copy_advice(
+                        enable.copy_advice(
+                            || "image table: static frame entry",
+                            &mut ctx.borrow_mut().region,
+                            self.config.col,
+                            offset,
+                        )?;
+                        #[cfg(not(feature = "uniform-circuit"))]
+                        ctx.borrow_mut().region.assign_fixed(
+                            || "image table: initialization state",
+                            self.config.col,
+                            offset,
+                            || Ok(*enable.value().unwrap()),
+                        )?;
+
+                        ctx.borrow_mut().next();
+
+                        let offset = ctx.borrow().offset;
+
+                        #[cfg(feature = "uniform-circuit")]
+                        entry.copy_advice(
                             || "image table: static frame entry",
                             &mut ctx.borrow_mut().region,
                             self.config.col,
                             _offset,
                         )?;
                         #[cfg(not(feature = "uniform-circuit"))]
-                        todo!();
-
-                        ctx.borrow_mut().next();
-
-                        let _offset = ctx.borrow().offset;
-
-                        #[cfg(feature = "uniform-circuit")]
-                        _entry.copy_advice(
-                            || "image table: static frame entry",
-                            &mut ctx.borrow_mut().region,
+                        ctx.borrow_mut().region.assign_fixed(
+                            || "image table: initialization state",
                             self.config.col,
-                            _offset,
+                            offset,
+                            || Ok(*entry.value().unwrap()),
                         )?;
-                        #[cfg(not(feature = "uniform-circuit"))]
-                        todo!();
 
                         ctx.borrow_mut().next();
 
-                        cells.push((_enable.clone(), _entry.clone()));
+                        cells.push((enable.clone(), entry.clone()));
                     }
 
                     Ok(cells.try_into().expect(&format!(

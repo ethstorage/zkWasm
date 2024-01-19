@@ -152,16 +152,13 @@ impl WasmiRuntime {
                     iid: 0,
                 });
 
-            tracer
-                .clone()
-                .borrow_mut()
-                .static_jtable_entries
-                .push(if instance.has_start() {
+            tracer.as_ref().borrow_mut().static_jtable_entries.push(
+                if let Some(idx_of_start_function) = module.module().start_section() {
                     StaticFrameEntry {
                         enable: true,
                         frame_id: 0,
                         next_frame_id: 0,
-                        callee_fid: 0, // the fid of start function is always 0,
+                        callee_fid: idx_of_start_function,
                         fid: idx_of_entry,
                         iid: 0,
                     }
@@ -174,7 +171,8 @@ impl WasmiRuntime {
                         fid: 0,
                         iid: 0,
                     }
-                });
+                },
+            );
 
             if instance.has_start() {
                 module.module().start_section().unwrap()
