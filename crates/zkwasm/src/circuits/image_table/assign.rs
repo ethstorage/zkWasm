@@ -18,7 +18,6 @@ impl<F: FieldExt> ImageTableChip<F> {
         layouter: &mut impl Layouter<F>,
         image_table_assigner: &mut ImageTableAssigner,
         image_table: ImageTableLayouter<F>,
-        permutation_cells: ImageTableLayouter<AssignedCell<F, F>>,
     ) -> Result<ImageTableLayouter<AssignedCell<F, F>>, Error> {
         layouter.assign_region(
             || "pre image table",
@@ -63,7 +62,7 @@ impl<F: FieldExt> ImageTableChip<F> {
 
                                 ctx.borrow_mut().next();
 
-                                Ok(cell)
+                                Ok::<_, Error>(cell)
                             }};
                         }
                     }
@@ -72,30 +71,9 @@ impl<F: FieldExt> ImageTableChip<F> {
                 let initialization_state_handler = |base_offset| {
                     ctx.borrow_mut().offset = base_offset;
 
-                    let initialization_state =
-                        permutation_cells.initialization_state.map(|field| {
-                            let offset = ctx.borrow().offset;
-
-                            #[cfg(feature = "uniform-circuit")]
-                            field.copy_advice(
-                                || "image table: initialization state",
-                                &mut ctx.borrow_mut().region,
-                                self.config.col,
-                                offset,
-                            )?;
-                            // TODO: assign image table first then pass iamge table to etable to make code consistent
-                            #[cfg(not(feature = "uniform-circuit"))]
-                            ctx.borrow_mut().region.assign_fixed(
-                                || "image table: initialization state",
-                                self.config.col,
-                                offset,
-                                || Ok(*field.value().unwrap()),
-                            )?;
-
-                            ctx.borrow_mut().next();
-
-                            Ok(field.clone())
-                        });
+                    let initialization_state = image_table
+                        .initialization_state
+                        .map(|field| assign!(*field));
 
                     initialization_state.transpose()
                 };
@@ -105,46 +83,11 @@ impl<F: FieldExt> ImageTableChip<F> {
 
                     let mut cells = vec![];
 
-                    for (enable, entry) in &permutation_cells.static_frame_entries {
-                        let offset = ctx.borrow().offset;
+                    for (enable, entry) in &image_table.static_frame_entries {
+                        let enable = assign!(*enable)?;
+                        let entry = assign!(*entry)?;
 
-                        #[cfg(feature = "uniform-circuit")]
-                        enable.copy_advice(
-                            || "image table: static frame entry",
-                            &mut ctx.borrow_mut().region,
-                            self.config.col,
-                            offset,
-                        )?;
-                        #[cfg(not(feature = "uniform-circuit"))]
-                        ctx.borrow_mut().region.assign_fixed(
-                            || "image table: initialization state",
-                            self.config.col,
-                            offset,
-                            || Ok(*enable.value().unwrap()),
-                        )?;
-
-                        ctx.borrow_mut().next();
-
-                        let offset = ctx.borrow().offset;
-
-                        #[cfg(feature = "uniform-circuit")]
-                        entry.copy_advice(
-                            || "image table: static frame entry",
-                            &mut ctx.borrow_mut().region,
-                            self.config.col,
-                            _offset,
-                        )?;
-                        #[cfg(not(feature = "uniform-circuit"))]
-                        ctx.borrow_mut().region.assign_fixed(
-                            || "image table: initialization state",
-                            self.config.col,
-                            offset,
-                            || Ok(*entry.value().unwrap()),
-                        )?;
-
-                        ctx.borrow_mut().next();
-
-                        cells.push((enable.clone(), entry.clone()));
+                        cells.push((enable, entry));
                     }
 
                     Ok(cells.try_into().expect(&format!(

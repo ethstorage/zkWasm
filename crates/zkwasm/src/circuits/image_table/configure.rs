@@ -20,12 +20,13 @@ impl<F: FieldExt> ImageTableConfig<F> {
                 let col = meta.named_advice_column(super::IMAGE_COL_NAME.to_owned());
 
                 if cfg!(feature="continuation") {
-                    meta.enable_equality(col);
                 }
             } else {
                 let col = meta.fixed_column();
             }
         }
+
+        meta.enable_equality(col);
 
         Self {
             memory_addr_sel,

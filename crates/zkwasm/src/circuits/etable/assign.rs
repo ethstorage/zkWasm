@@ -58,7 +58,6 @@ use crate::circuits::utils::Context;
 pub(in crate::circuits) struct EventTablePermutationCells<F: FieldExt> {
     pub(in crate::circuits) rest_mops: Option<AssignedCell<F, F>>,
     pub(in crate::circuits) rest_jops: Option<AssignedCell<F, F>>,
-    pub(in crate::circuits) pre_initialization_state: InitializationState<AssignedCell<F, F>>,
     pub(in crate::circuits) post_initialization_state: InitializationState<AssignedCell<F, F>>,
 }
 
@@ -67,6 +66,7 @@ impl<F: FieldExt> EventTableChip<F> {
         &self,
         ctx: &mut Context<'_, F>,
         state: &InitializationState<u32>,
+        assigned_pre_initialization_state: Option<&InitializationState<AssignedCell<F, F>>>,
     ) -> Result<InitializationState<AssignedCell<F, F>>, Error> {
         cfg_if::cfg_if! {
             if #[cfg(feature="continuation")] {
@@ -118,6 +118,34 @@ impl<F: FieldExt> EventTableChip<F> {
         #[cfg(feature = "continuation")]
         let jops = assign_common_range_advice!(jops_cell, state.jops);
 
+        if let Some(assigned_pre_initialization_state) = assigned_pre_initialization_state {
+            macro_rules! constrain_equal {
+                ($field:ident) => {
+                    ctx.region.constrain_equal(
+                        $field.cell(),
+                        assigned_pre_initialization_state.$field.cell(),
+                    )?;
+                };
+            }
+
+            constrain_equal!(eid);
+            constrain_equal!(fid);
+            constrain_equal!(iid);
+            constrain_equal!(sp);
+            constrain_equal!(frame_id);
+
+            constrain_equal!(host_public_inputs);
+            constrain_equal!(context_in_index);
+            constrain_equal!(context_out_index);
+            constrain_equal!(external_host_call_call_index);
+
+            constrain_equal!(initial_memory_pages);
+            constrain_equal!(maximal_memory_pages);
+
+            #[cfg(feature = "continuation")]
+            constrain_equal!(jops);
+        }
+
         // The context will be stepped by EVENT_TABLE_ENTRY_ROWS.
         ctx.step(EVENT_TABLE_ENTRY_ROWS as usize);
 
@@ -146,7 +174,7 @@ impl<F: FieldExt> EventTableChip<F> {
         op_configs: &BTreeMap<OpcodeClassPlain, Rc<Box<dyn EventTableOpcodeConfig<F>>>>,
         itable: &InstructionTable,
         event_table: &EventTableWithMemoryInfo,
-        #[cfg(feature = "continuation")] initialization_state: &InitializationState<u32>,
+        _initialization_state: &InitializationState<u32>,
     ) -> (u32, u32) {
         let (rest_mops, _rest_jops) =
             event_table
@@ -165,7 +193,7 @@ impl<F: FieldExt> EventTableChip<F> {
 
         cfg_if::cfg_if! {
             if #[cfg(feature="continuation")] {
-                (rest_mops, initialization_state.jops)
+                (rest_mops, _initialization_state.jops)
             } else {
                 (rest_mops, _rest_jops)
             }
@@ -224,10 +252,10 @@ impl<F: FieldExt> EventTableChip<F> {
         initialization_state: &InitializationState<u32>,
     ) -> Result<InitializationState<AssignedCell<F, F>>, Error> {
         while ctx.offset < self.capability * EVENT_TABLE_ENTRY_ROWS as usize {
-            self.assign_step_state(ctx, initialization_state)?;
+            self.assign_step_state(ctx, initialization_state, None)?;
         }
 
-        self.assign_step_state(ctx, initialization_state)
+        self.assign_step_state(ctx, initialization_state, None)
     }
 
     fn assign_entries(
@@ -355,6 +383,7 @@ impl<F: FieldExt> EventTableChip<F> {
                     #[cfg(feature = "continuation")]
                     jops,
                 },
+                None,
             )?;
 
             if op_config.is_host_public_input(&entry.eentry) {
@@ -384,10 +413,11 @@ impl<F: FieldExt> EventTableChip<F> {
     pub(in crate::circuits) fn assign(
         &self,
         ctx: &mut Context<'_, F>,
+        initialization_state: &InitializationState<u32>,
+        assigned_pre_initialization_state: &InitializationState<AssignedCell<F, F>>,
         itable: &InstructionTable,
         event_table: &EventTableWithMemoryInfo,
         configure_table: &ConfigureTable,
-        initialization_state: &InitializationState<u32>,
         post_initialization_state: &InitializationState<u32>,
         _is_last_slice: bool,
     ) -> Result<EventTablePermutationCells<F>, Error> {
@@ -398,18 +428,21 @@ impl<F: FieldExt> EventTableChip<F> {
         self.init(ctx)?;
         ctx.reset();
 
+        self.assign_step_state(
+            ctx,
+            initialization_state,
+            Some(assigned_pre_initialization_state),
+        )?;
+        ctx.reset();
+
         let (rest_mops_cell, _jops_cell) = self.assign_rest_ops_first_step(ctx)?;
 
         let (rest_mops, jops) = self.compute_rest_mops_and_jops(
             &self.config.op_configs,
             itable,
             event_table,
-            #[cfg(feature = "continuation")]
             initialization_state,
         );
-
-        let pre_initialization_state_cells = self.assign_step_state(ctx, &initialization_state)?;
-        ctx.reset();
 
         self.assign_entries(
             ctx,
@@ -435,14 +468,12 @@ impl<F: FieldExt> EventTableChip<F> {
                     } else {
                         None
                     },
-                    pre_initialization_state: pre_initialization_state_cells,
                     post_initialization_state: post_initialization_state_cells,
                 })
             } else {
                 Ok(EventTablePermutationCells {
                     rest_mops: Some(rest_mops_cell),
                     rest_jops: Some(_jops_cell),
-                    pre_initialization_state: pre_initialization_state_cells,
                     post_initialization_state: post_initialization_state_cells,
                 })
             }

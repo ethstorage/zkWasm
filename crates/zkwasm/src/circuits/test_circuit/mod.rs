@@ -206,6 +206,26 @@ impl<F: FieldExt> Circuit<F> for TestCircuit<F> {
             ExternalHostCallChip::new(config.external_host_call_table, config.max_available_rows);
         let context_chip = ContextContHelperTableChip::new(config.context_helper_table);
 
+        let mut image_table_assigner = ImageTableAssigner::new(
+            // Add one for default lookup value
+            self.tables.compilation_tables.itable.len() + 1,
+            self.tables.compilation_tables.br_table.entries().len()
+                + self.tables.compilation_tables.elem_table.entries().len()
+                + 1,
+            config.circuit_maximal_pages,
+        );
+
+        let pre_image_table_cells = exec_with_profile!(
+            || "Assign Pre Image Table",
+            image_chip.assign(
+                &mut layouter,
+                &mut image_table_assigner,
+                self.tables
+                    .compilation_tables
+                    .encode_compilation_table_values(config.circuit_maximal_pages),
+            )?
+        );
+
         layouter.assign_region(
             || "foreign helper",
             |mut region| {
@@ -239,7 +259,7 @@ impl<F: FieldExt> Circuit<F> for TestCircuit<F> {
         let (
             etable_permutation_cells,
             (rest_memory_writing_ops_cell, rest_memory_writing_ops, memory_finalized_set),
-            static_frame_entries,
+            _static_frame_entries,
         ) = layouter.assign_region(
             || "jtable mtable etable",
             |region| {
@@ -260,10 +280,11 @@ impl<F: FieldExt> Circuit<F> for TestCircuit<F> {
                     || "Assign etable",
                     echip.assign(
                         &mut ctx,
+                        &self.tables.compilation_tables.initialization_state,
+                        &pre_image_table_cells.initialization_state,
                         &self.tables.compilation_tables.itable,
                         &etable,
                         &self.tables.compilation_tables.configure_table,
-                        &self.tables.compilation_tables.initialization_state,
                         &self.tables.post_image_table.initialization_state,
                         self.tables.is_last_slice,
                     )?
@@ -314,34 +335,6 @@ impl<F: FieldExt> Circuit<F> for TestCircuit<F> {
                 &mut layouter,
                 &self.tables.execution_tables.etable.get_context_inputs(),
                 &self.tables.execution_tables.etable.get_context_outputs()
-            )?
-        );
-
-        let mut image_table_assigner = ImageTableAssigner::new(
-            // Add one for default lookup value
-            self.tables.compilation_tables.itable.len() + 1,
-            self.tables.compilation_tables.br_table.entries().len()
-                + self.tables.compilation_tables.elem_table.entries().len()
-                + 1,
-            config.circuit_maximal_pages,
-        );
-
-        let pre_image_table_cells = exec_with_profile!(
-            || "Assign Pre Image Table",
-            image_chip.assign(
-                &mut layouter,
-                &mut image_table_assigner,
-                self.tables
-                    .compilation_tables
-                    .encode_compilation_table_values(config.circuit_maximal_pages),
-                ImageTableLayouter {
-                    initialization_state: etable_permutation_cells.pre_initialization_state,
-                    static_frame_entries,
-                    instructions: vec![],
-                    br_table_entires: vec![],
-                    padding_entires: vec![],
-                    init_memory_entries: vec![],
-                }
             )?
         );
 
