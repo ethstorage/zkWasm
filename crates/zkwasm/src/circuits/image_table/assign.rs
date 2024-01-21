@@ -42,7 +42,7 @@ impl<F: FieldExt> ImageTableChip<F> {
 
                                 ctx.borrow_mut().next();
 
-                                Ok(cell)
+                                Ok::<_, Error>(cell)
                             }};
                         }
                     } else {
