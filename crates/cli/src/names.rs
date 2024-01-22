@@ -17,7 +17,11 @@ pub(crate) fn name_of_circuit_data(name: &str) -> String {
 #[cfg(feature = "continuation")]
 #[inline(always)]
 pub(crate) fn name_of_circuit_data(name: &str, is_last_circuit: bool) -> String {
-    format!("{}.circuit.data", name)
+    if is_last_circuit {
+        format!("{}.circuit.finalized.data", name)
+    } else {
+        format!("{}.circuit.ongoing.data", name)
+    }
 }
 
 // FIXME: adapt batcher crate, however the crate should provice this function
