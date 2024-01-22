@@ -614,6 +614,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "specs",
+ "wabt",
  "wasmi",
 ]
 

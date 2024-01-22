@@ -1,6 +1,5 @@
 use std::fs;
 use std::fs::File;
-use std::fs::OpenOptions;
 use std::io::Cursor;
 use std::io::Read;
 use std::io::Write;
@@ -27,25 +26,39 @@ use serde::Serialize;
 
 use crate::args::HostMode;
 use crate::names::name_of_circuit_data;
-use crate::names::name_of_config;
 use crate::names::name_of_loadinfo;
 use crate::names::name_of_params;
 
 #[derive(Serialize, Deserialize)]
+pub(crate) struct CircuitDataMd5 {
+    pub(crate) circuit_data_md5: String,
+    pub(crate) verifying_key_md5: String,
+}
+
+#[cfg(not(feature = "continuation"))]
+#[derive(Serialize, Deserialize)]
+pub(crate) struct CircuitDataConfig(pub(crate) CircuitDataMd5);
+
+#[cfg(feature = "continuation")]
+#[derive(Serialize, Deserialize)]
+pub(crate) struct CircuitDataConfig {
+    pub(crate) on_going_circuit: CircuitDataMd5,
+    pub(crate) finalized_circuit: CircuitDataMd5,
+}
+
+#[derive(Serialize, Deserialize)]
 pub(crate) struct Config {
-    name: String,
+    pub(crate) name: String,
 
-    is_uniform_circuit: bool,
-    k: u32,
-    params: PathBuf,
+    pub(crate) is_uniform_circuit: bool,
+    pub(crate) k: u32,
+    pub(crate) params: PathBuf,
+    pub(crate) params_md5: String,
+    pub(crate) wasm_image_md5: Option<String>,
+    pub(crate) circuit_datas: CircuitDataConfig,
 
-    params_md5: String,
-    circuit_data_md5: String,
-    verifying_key_md5: String,
-    wasm_image_md5: Option<String>,
-
-    checksum: (String, String),
-    phantom_functions: Vec<String>,
+    pub(crate) checksum: (String, String),
+    pub(crate) phantom_functions: Vec<String>,
     pub(crate) host_mode: HostMode,
 }
 
@@ -79,34 +92,36 @@ impl Config {
     }
 
     fn circuit_data_consistent_check(&self, circuit_data: &[u8]) -> anyhow::Result<()> {
-        let circuit_data_md5 = format!("{:x}", md5::compute(&circuit_data));
+        // let circuit_data_md5 = format!("{:x}", md5::compute(&circuit_data));
 
-        if circuit_data_md5 != self.circuit_data_md5 {
-            anyhow::bail!(
-                "Circuit data is inconsistent with the one used to build the circuit. \
-                    Maybe you have changed the circuit data after setup the circuit?",
-            );
-        }
+        // if circuit_data_md5 != self.circuit_data_md5 {
+        //     anyhow::bail!(
+        //         "Circuit data is inconsistent with the one used to build the circuit. \
+        //             Maybe you have changed the circuit data after setup the circuit?",
+        //     );
+        // }
 
-        Ok(())
+        // Ok(())
+
+        todo!()
     }
 
     fn veryfying_key_consistent_check(&self, verifying_key: &[u8]) -> anyhow::Result<()> {
-        let verifying_key_md5 = format!("{:x}", md5::compute(&verifying_key));
+        // let verifying_key_md5 = format!("{:x}", md5::compute(&verifying_key));
 
-        if verifying_key_md5 != self.verifying_key_md5 {
-            anyhow::bail!(
-                "Verifying key is inconsistent with the one used to build the circuit. \
-                    Maybe you have changed the circuit data after setup the circuit?",
-            );
-        }
+        // if verifying_key_md5 != self.verifying_key_md5 {
+        //     anyhow::bail!(
+        //         "Verifying key is inconsistent with the one used to build the circuit. \
+        //             Maybe you have changed the circuit data after setup the circuit?",
+        //     );
+        // }
 
-        Ok(())
+        todo!()
     }
 }
 
 impl Config {
-    fn write(&self, fd: &mut File) -> anyhow::Result<()> {
+    pub(crate) fn write(&self, fd: &mut File) -> anyhow::Result<()> {
         fd.write(&bincode::serialize(self)?)?;
 
         Ok(())
@@ -161,134 +176,6 @@ impl Config {
         Ok(circuit_data)
     }
 
-    pub(crate) fn setup<EnvBuilder: HostEnvBuilder>(
-        name: &str,
-        k: u32,
-        wasm_image: Vec<u8>,
-        phantom_functions: Vec<String>,
-        host_mode: HostMode,
-        params_dir: &PathBuf,
-    ) -> Result<()> {
-        fs::create_dir_all(params_dir)?;
-
-        let params_path = params_dir.join(name_of_params(k));
-        let params = {
-            if params_path.exists() {
-                println!(
-                    "{} Found existing params at {:?}. Using it instead of building a new one...",
-                    style("[1/4]").bold().dim(),
-                    params_path.canonicalize()?
-                );
-
-                Params::<G1Affine>::read(&mut File::open(&params_path)?)?
-            } else {
-                println!(
-                    "{} Building params for K = {}...",
-                    style("[1/4]").bold().dim(),
-                    k
-                );
-                let params = Params::<G1Affine>::unsafe_setup::<Bn256>(k);
-
-                params.write(&mut File::create(&params_path)?)?;
-                params
-            }
-        };
-
-        let loader = ZkWasmLoader::<Bn256, _, EnvBuilder>::new(
-            k,
-            wasm_image.clone(),
-            phantom_functions.clone(),
-        )?;
-
-        println!("{} Building circuit data...", style("[2/4]").bold().dim(),);
-        let (verifying_key_md5, circuit_data_md5) = {
-            let circuit =
-                loader.circuit_without_witness(EnvBuilder::HostConfig::default(), todo!())?;
-            let vkey = loader.create_vkey(&params, &circuit)?;
-            let circuit_data = CircuitData::new(&params, vkey, &circuit)?;
-
-            let verifying_key_md5 = {
-                let mut buf = Vec::new();
-                circuit_data.get_vkey().write(&mut buf)?;
-
-                format!("{:x}", md5::compute(&buf))
-            };
-
-            let circuit_data_md5 = {
-                let path = params_dir.join(name_of_circuit_data(name));
-
-                circuit_data.write(
-                    &mut OpenOptions::new()
-                        .read(true)
-                        .write(true)
-                        .create(true)
-                        .truncate(true)
-                        .open(&path)?,
-                )?;
-
-                let mut buf = Vec::new();
-                File::open(&path)?.read_to_end(&mut buf)?;
-
-                format!("{:x}", md5::compute(&buf))
-            };
-
-            (verifying_key_md5, circuit_data_md5)
-        };
-
-        println!("{} Computing checksum...", style("[3/4]").bold().dim(),);
-        let checksum = {
-            let checksum = loader.checksum(&params, todo!())?;
-            assert_eq!(checksum.len(), 1);
-
-            (checksum[0].x.to_string(), checksum[0].y.to_string())
-        };
-
-        {
-            println!("{} Writing config...", style("[4/4]").bold().dim(),);
-
-            let params_md5 = {
-                let mut buf = Vec::new();
-
-                params.write(&mut buf)?;
-                let md5 = md5::compute(&buf);
-
-                format!("{:x}", md5)
-            };
-
-            let config_path = params_dir.join(&name_of_config(name));
-
-            let config = Config {
-                name: name.to_string(),
-
-                k,
-                params: params_path,
-                is_uniform_circuit: cfg!(feature = "uniform-circuit"),
-
-                params_md5,
-                circuit_data_md5,
-                verifying_key_md5,
-                wasm_image_md5: if cfg!(feature = "uniform-circuit") {
-                    None
-                } else {
-                    Some(format!("{:x}", md5::compute(&wasm_image)))
-                },
-
-                checksum,
-                phantom_functions,
-                host_mode,
-            };
-            config.write(&mut File::create(&config_path)?)?;
-
-            println!(
-                "{} {:?}",
-                style("The configuration is saved at").green().bold().dim(),
-                config_path.canonicalize()?
-            );
-        }
-
-        Ok(())
-    }
-
     pub(crate) fn dry_run<EnvBuilder: HostEnvBuilder>(
         self,
         wasm_image: &PathBuf,
@@ -335,7 +222,7 @@ impl Config {
 
         Ok(())
     }
-
+/*
     pub(crate) fn prove<EnvBuilder: HostEnvBuilder>(
         self,
         wasm_image: &PathBuf,
@@ -442,6 +329,7 @@ impl Config {
 
         Ok(())
     }
+*/
 
     pub(crate) fn verify(self, params_dir: &PathBuf, output_dir: &PathBuf) -> anyhow::Result<()> {
         let proof = {

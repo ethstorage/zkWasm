@@ -164,13 +164,17 @@ impl<E: MultiMillerLoop, T, EnvBuilder: HostEnvBuilder<Arg = T>> ZkWasmLoader<E,
         Ok(keygen_vk(&params, circuit).unwrap())
     }
 
-    pub fn checksum<'a, 'b>(
+    pub fn checksum<'a>(
         &self,
         params: &'a Params<E::G1Affine>,
-        image: &'b CompilationTable,
+        envconfig: EnvBuilder::HostConfig,
     ) -> Result<Vec<E::G1Affine>> {
+        let (env, _wasm_runtime_io) = EnvBuilder::create_env_without_value(envconfig);
+
+        let compiled_module = self.compile(&env, true)?;
+
         let table_with_params = CompilationTableWithParams {
-            table: &image,
+            table: &compiled_module.tables,
             params,
         };
 
