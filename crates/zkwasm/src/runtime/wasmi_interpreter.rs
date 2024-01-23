@@ -95,7 +95,7 @@ impl Execution<RuntimeValue>
                     .update_initialization_state(&execution_tables.etable.entries(), true),
             }
         } else {
-            todo!()
+            self.tables.clone()
         };
 
         Ok(ExecutionResult {

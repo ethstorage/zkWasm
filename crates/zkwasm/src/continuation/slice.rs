@@ -16,11 +16,6 @@ pub struct Slice {
 
 impl Slice {
     pub fn build_circuit<F: FieldExt>(self) -> TestCircuit<F> {
-        println!(
-            "etable entries: {}",
-            self.table.execution_tables.etable.entries().len()
-        );
-
         let builder = ZkWasmCircuitBuilder { tables: self.table };
 
         builder.build_circuit(Some(self.capability))

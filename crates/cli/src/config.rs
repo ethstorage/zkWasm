@@ -37,7 +37,9 @@ pub(crate) struct CircuitDataMd5 {
 
 #[cfg(not(feature = "continuation"))]
 #[derive(Serialize, Deserialize)]
-pub(crate) struct CircuitDataConfig(pub(crate) CircuitDataMd5);
+pub(crate) struct CircuitDataConfig {
+    pub(crate) finalized_circuit: CircuitDataMd5,
+}
 
 #[cfg(feature = "continuation")]
 #[derive(Serialize, Deserialize)]
@@ -91,32 +93,21 @@ impl Config {
         Ok(())
     }
 
-    fn circuit_data_consistent_check(&self, circuit_data: &[u8]) -> anyhow::Result<()> {
-        // let circuit_data_md5 = format!("{:x}", md5::compute(&circuit_data));
+    fn veryfying_key_consistent_check(
+        &self,
+        verifying_key: &[u8],
+        expected_md5: &str,
+    ) -> anyhow::Result<()> {
+        let verifying_key_md5 = format!("{:x}", md5::compute(&verifying_key));
 
-        // if circuit_data_md5 != self.circuit_data_md5 {
-        //     anyhow::bail!(
-        //         "Circuit data is inconsistent with the one used to build the circuit. \
-        //             Maybe you have changed the circuit data after setup the circuit?",
-        //     );
-        // }
+        if verifying_key_md5 != expected_md5 {
+            anyhow::bail!(
+                "Verifying key is inconsistent with the one used to build the circuit. \
+                    Maybe you have changed the circuit data after setup the circuit?",
+            );
+        }
 
-        // Ok(())
-
-        todo!()
-    }
-
-    fn veryfying_key_consistent_check(&self, verifying_key: &[u8]) -> anyhow::Result<()> {
-        // let verifying_key_md5 = format!("{:x}", md5::compute(&verifying_key));
-
-        // if verifying_key_md5 != self.verifying_key_md5 {
-        //     anyhow::bail!(
-        //         "Verifying key is inconsistent with the one used to build the circuit. \
-        //             Maybe you have changed the circuit data after setup the circuit?",
-        //     );
-        // }
-
-        todo!()
+        Ok(())
     }
 }
 
@@ -161,15 +152,20 @@ impl Config {
 
     fn read_circuit_data(
         &self,
-        params_dir: &PathBuf,
-        file: &str,
+        path: &PathBuf,
+        expected_md5: &str,
     ) -> anyhow::Result<CircuitData<G1Affine>> {
-        let path = params_dir.join(file);
-
         let mut buf = Vec::new();
         File::open(&path)?.read_to_end(&mut buf)?;
 
-        self.circuit_data_consistent_check(&buf)?;
+        let circuit_data_md5 = format!("{:x}", md5::compute(&buf));
+
+        if circuit_data_md5 != expected_md5 {
+            anyhow::bail!(
+                "Circuit data is inconsistent with the one used to build the circuit. \
+                    Maybe you have changed the circuit data after setup the circuit?",
+            );
+        }
 
         let circuit_data = CircuitData::<G1Affine>::read(&mut File::open(&path)?)?;
 
@@ -214,7 +210,7 @@ impl Config {
                 context_output.write(&mut File::create(&context_output_path)?)?;
             } else {
                 println!(
-                    "{} Context output is not specified. Skip writing context output.",
+                    "{} Context output is not specified. Skip writing context output...",
                     style("[2/2]").bold().dim()
                 );
             }
@@ -222,7 +218,7 @@ impl Config {
 
         Ok(())
     }
-/*
+
     pub(crate) fn prove<EnvBuilder: HostEnvBuilder>(
         self,
         wasm_image: &PathBuf,
@@ -232,24 +228,22 @@ impl Config {
         context_output_filename: Option<String>,
         mock_test: bool,
     ) -> anyhow::Result<()> {
-        println!("{} Prepare...", style("[1/8]").bold().dim(),);
-
-        let params = self.read_params(params_dir)?;
-        let proving_key = self
-            .read_circuit_data(params_dir, &name_of_circuit_data(&self.name))?
-            .into_proving_key(&params);
+        println!("{} Load image...", style("[1/8]").bold().dim(),);
         let wasm_image = self.read_wasm_image(wasm_image)?;
 
-        let context_output = arg.get_context_output();
+        println!("{} Load params...", style("[2/8]").bold().dim(),);
+        let params = self.read_params(params_dir)?;
 
         let loader = ZkWasmLoader::<Bn256, EnvBuilder::Arg, EnvBuilder>::new(
             self.k,
             wasm_image,
-            self.phantom_functions,
+            self.phantom_functions.clone(),
         )?;
 
+        let context_output = arg.get_context_output();
+
         let result = {
-            println!("{} Executing...", style("[2/8]").bold().dim(),);
+            println!("{} Executing...", style("[3/8]").bold().dim(),);
             let result = loader.run(arg, EnvBuilder::HostConfig::default(), false)?;
 
             println!("total guest instructions used {:?}", result.guest_statics);
@@ -264,15 +258,15 @@ impl Config {
 
                 println!(
                     "{} Write context output to file {:?}...",
-                    style("[3/8]").bold().dim(),
+                    style("[4/8]").bold().dim(),
                     context_output_path
                 );
 
                 context_output.write(&mut File::create(&context_output_path)?)?;
             } else {
                 println!(
-                    "{} Context output is not specified. Skip writing context output.",
-                    style("[3/8]").bold().dim()
+                    "{} Context output is not specified. Skip writing context output...",
+                    style("[4/8]").bold().dim()
                 );
             }
         }
@@ -283,56 +277,110 @@ impl Config {
 
             println!(
                 "{} Writing traces to {:?}...",
-                style("[4/8]").bold().dim(),
+                style("[5/8]").bold().dim(),
                 dir
             );
             result.tables.write(&dir);
         }
 
-        let (circuit, instances) = {
-            println!("{} Build circuit...", style("[5/8]").bold().dim(),);
+        println!("{} Build circuit(s)...", style("[6/8]").bold().dim(),);
+        let instances = result
+            .public_inputs_and_outputs
+            .clone()
+            .iter()
+            .map(|v| (*v).into())
+            .collect::<Vec<_>>();
 
-            loader.circuit_with_witness(result)?
+        #[cfg(feature = "continuation")]
+        let circuits = {
+            let mut slices = loader.slice(result).into_iter();
+            let mut circuits = vec![];
+
+            while let Some(slice) = slices.next() {
+                let circuit = slice.build_circuit();
+
+                circuits.push(circuit);
+            }
+
+            circuits
         };
 
-        {
+        #[cfg(not(feature = "continuation"))]
+        let circuits = {
+            let (circuit, _) = loader.circuit_with_witness(result)?;
+
+            vec![circuit]
+        };
+
+        let circuits_slices_count = circuits.len();
+        println!("Created {} circuit(s)...", circuits.len());
+
+        let mut circuits = circuits.into_iter().enumerate().peekable();
+        while let Some((index, circuit)) = circuits.next() {
+            #[cfg(feature = "continuation")]
+            let proving_key = if circuits.peek().is_none() {
+                self.read_circuit_data(
+                    &params_dir.join(name_of_circuit_data(&self.name, true)),
+                    &self.circuit_datas.finalized_circuit.circuit_data_md5,
+                )?
+                .into_proving_key(&params)
+            } else {
+                self.read_circuit_data(
+                    &params_dir.join(name_of_circuit_data(&self.name, false)),
+                    &self.circuit_datas.on_going_circuit.circuit_data_md5,
+                )?
+                .into_proving_key(&params)
+            };
+
+            #[cfg(not(feature = "continuation"))]
+            let proving_key = self
+                .read_circuit_data(
+                    &params_dir.join(name_of_circuit_data(&self.name)),
+                    &self.circuit_datas.finalized_circuit.circuit_data_md5,
+                )?
+                .into_proving_key(&params);
+
             if mock_test {
-                println!("{} Mock test...", style("[6/8]").bold().dim(),);
+                println!("Mock test...",);
                 loader.mock_test(&circuit, &instances)?;
             } else {
-                println!("{} Mock test is skipped", style("[6/8]").bold().dim(),);
+                println!("Mock test is skipped...",);
             }
-        }
 
-        {
-            let circuit: CircuitInfo<Bn256, TestCircuit<Fr>> = CircuitInfo::new(
+            let circuit_info: CircuitInfo<Bn256, TestCircuit<Fr>> = CircuitInfo::new(
                 circuit,
                 self.name.clone(),
-                vec![instances],
+                vec![instances.clone()],
                 self.k as usize,
                 circuits_batcher::args::HashType::Poseidon,
             );
 
             println!("{} Creating proof...", style("[7/8]").bold().dim(),);
-            circuit.exec_create_proof_with_params(&params, &proving_key, output_dir, 0);
+            circuit_info.exec_create_proof_with_params(&params, &proving_key, output_dir, index);
+        }
 
+        {
+            let proof_load_info = ProofLoadInfo::new(
+                &self.name,
+                circuits_slices_count,
+                self.k as usize,
+                vec![instances.len() as u32],
+                circuits_batcher::args::HashType::Poseidon,
+            );
             let proof_load_info_path = output_dir.join(&name_of_loadinfo(&self.name));
             println!(
                 "{} Saving proof load info at {:?}...",
                 style("[8/8]").bold().dim(),
                 proof_load_info_path
             );
-            circuit
-                .proofloadinfo
-                .save(proof_load_info_path.parent().unwrap());
+            proof_load_info.save(proof_load_info_path.parent().unwrap());
         }
 
         Ok(())
     }
-*/
 
     pub(crate) fn verify(self, params_dir: &PathBuf, output_dir: &PathBuf) -> anyhow::Result<()> {
-        let proof = {
+        let mut proofs = {
             println!(
                 "{} Reading proof from {:?}",
                 style("[1/4]").bold().dim(),
@@ -345,34 +393,51 @@ impl Config {
             let proofs: Vec<ProofInfo<Bn256>> =
                 ProofInfo::load_proof(&output_dir, &params_dir, &proof_load_info);
 
-            assert_eq!(proofs.len(), 1, "zkWasm cli doesn't handle multiple proofs");
+            proofs
+        }
+        .into_iter()
+        .peekable();
 
-            proofs.into_iter().nth(0).unwrap()
-        };
+        while let Some(proof) = proofs.next() {
+            let params_verifier = {
+                println!(
+                    "{} Building verifier params...",
+                    style("[3/4]").bold().dim(),
+                );
 
-        let params_verifier = {
-            println!(
-                "{} Building verifier params...",
-                style("[3/4]").bold().dim(),
-            );
+                let public_inputs_size = proof
+                    .instances
+                    .iter()
+                    .fold(0, |acc, x| usize::max(acc, x.len()));
 
-            let public_inputs_size = proof
-                .instances
-                .iter()
-                .fold(0, |acc, x| usize::max(acc, x.len()));
+                let params = self.read_params(params_dir)?;
+                params.verifier(public_inputs_size)?
+            };
 
-            let params = self.read_params(params_dir)?;
-            params.verifier(public_inputs_size)?
-        };
+            {
+                let mut buf = Vec::new();
+                proof.vkey.write(&mut Cursor::new(&mut buf))?;
 
-        {
-            let mut buf = Vec::new();
-            proof.vkey.write(&mut Cursor::new(&mut buf))?;
+                #[cfg(feature = "continuation")]
+                if proofs.peek().is_none() {
+                    self.veryfying_key_consistent_check(
+                        &buf,
+                        &self.circuit_datas.finalized_circuit.verifying_key_md5,
+                    )?;
+                } else {
+                    self.veryfying_key_consistent_check(
+                        &buf,
+                        &self.circuit_datas.on_going_circuit.verifying_key_md5,
+                    )?;
+                }
 
-            self.veryfying_key_consistent_check(&buf)?;
-        };
+                #[cfg(not(feature = "continuation"))]
+                self.veryfying_key_consistent_check(
+                    &buf,
+                    &self.circuit_datas.finalized_circuit.verifying_key_md5,
+                )?;
+            };
 
-        {
             println!("{} Verifying...", style("[3/3]").bold().dim(),);
 
             native_verifier::verify_single_proof::<Bn256>(

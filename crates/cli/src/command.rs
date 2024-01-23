@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 use crate::config::CircuitDataConfig;
 use crate::config::CircuitDataMd5;
+use crate::TRIVIAL_WASM;
 use clap::Args;
 use console::style;
 use delphinus_zkwasm::loader::ZkWasmLoader;
@@ -64,8 +65,6 @@ pub(crate) struct SetupArg {
 
 impl SetupArg {
     fn _setup_circuit_data<C: CurveAffine, ConcreteCircuit: Circuit<C::Scalar>>(
-        name: &str,
-        params_dir: &PathBuf,
         params: &Params<C>,
         circuit: &ConcreteCircuit,
         path_of_circuit_data: PathBuf,
@@ -116,15 +115,11 @@ impl SetupArg {
             loader.circuit_without_witness(EnvBuilder::HostConfig::default(), true)?;
 
         let on_going_circuit = SetupArg::_setup_circuit_data(
-            name,
-            params_dir,
             params,
             &on_going_circuit,
             params_dir.join(name_of_circuit_data(name, false)),
         )?;
         let finalized_circuit = SetupArg::_setup_circuit_data(
-            name,
-            params_dir,
             params,
             &finalized_circuit,
             params_dir.join(name_of_circuit_data(name, true)),
@@ -147,22 +142,26 @@ impl SetupArg {
         let circuit = loader.circuit_without_witness(EnvBuilder::HostConfig::default(), true)?;
 
         let circuit_data = SetupArg::_setup_circuit_data(
-            name,
-            params_dir,
             params,
             &circuit,
             params_dir.join(name_of_circuit_data(name)),
         )?;
-        Ok(CircuitDataConfig(circuit_data))
+        Ok(CircuitDataConfig {
+            finalized_circuit: circuit_data,
+        })
     }
 
     pub(crate) fn setup<EnvBuilder: HostEnvBuilder>(
         &self,
         name: &str,
         params_dir: &PathBuf,
-        wasm_image: Vec<u8>,
     ) -> anyhow::Result<()> {
         fs::create_dir_all(params_dir)?;
+
+        let wasm_image = self.wasm_image.as_ref().map_or(
+            wabt::wat2wasm(&TRIVIAL_WASM).map_err(|err| anyhow::anyhow!(err)),
+            |file| fs::read(file).map_err(|err| anyhow::anyhow!(err)),
+        )?;
 
         let params_path = params_dir.join(name_of_params(self.k));
         let params = {
@@ -273,35 +272,18 @@ pub(crate) struct RunningArg {
     pub(crate) context_output: Option<String>,
 }
 
-/// Execute the Wasm image without generating a proof.
-#[derive(Debug, Args)]
+#[derive(Debug)]
 pub(crate) struct DryRunArg {
-    #[clap(flatten)]
-    pub(crate) wasm_image: WasmImageArg,
-
-    /// Path to the directory to write the output.
-    #[clap(short = 'o', long = "output")]
-    pub(crate) output_dir: PathBuf,
-
-    #[clap(flatten)]
+    pub(crate) wasm_image: PathBuf,
     pub(crate) running_arg: RunningArg,
 }
 
 /// Execute the Wasm image and generate a proof.
-#[derive(Debug, Args)]
+#[derive(Debug)]
 pub(crate) struct ProveArg {
-    #[clap(flatten)]
-    pub(crate) wasm_image: WasmImageArg,
-
-    /// Path to the directory to proof.
-    #[clap(short = 'o', long = "output")]
+    pub(crate) wasm_image: PathBuf,
     pub(crate) output_dir: PathBuf,
-
-    #[clap(flatten)]
     pub(crate) running_arg: RunningArg,
-
-    /// Enable mock test.
-    #[clap(long = "mock", default_value = "false", takes_value = false)]
     pub(crate) mock_test: bool,
 }
 
