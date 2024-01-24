@@ -6,16 +6,14 @@ use std::io::Write;
 use std::path::PathBuf;
 
 use anyhow::Result;
-use circuits_batcher::proof::CircuitInfo;
 use circuits_batcher::proof::ProofInfo;
 use circuits_batcher::proof::ProofLoadInfo;
+use circuits_batcher::proof::ProofPieceInfo;
 use console::style;
-use delphinus_zkwasm::circuits::TestCircuit;
 use delphinus_zkwasm::loader::ZkWasmLoader;
 use delphinus_zkwasm::runtime::host::HostEnvArg;
 use delphinus_zkwasm::runtime::host::HostEnvBuilder;
 use halo2_proofs::pairing::bn256::Bn256;
-use halo2_proofs::pairing::bn256::Fr;
 use halo2_proofs::pairing::bn256::G1Affine;
 use halo2_proofs::plonk::CircuitData;
 use halo2_proofs::poly::commitment::Params;
@@ -26,8 +24,11 @@ use serde::Serialize;
 
 use crate::args::HostMode;
 use crate::names::name_of_circuit_data;
+use crate::names::name_of_instance;
 use crate::names::name_of_loadinfo;
 use crate::names::name_of_params;
+use crate::names::name_of_transcript;
+use crate::names::name_of_witness;
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct CircuitDataMd5 {
@@ -312,13 +313,23 @@ impl Config {
             vec![circuit]
         };
 
-        let circuits_slices_count = circuits.len();
         println!("Created {} circuit(s)...", circuits.len());
+
+        println!("{} Creating proof(s)...", style("[7/8]").bold().dim(),);
+        let mut proof_load_info = ProofLoadInfo::new(
+            &self.name,
+            self.k as usize,
+            circuits_batcher::args::HashType::Poseidon,
+        );
 
         let mut circuits = circuits.into_iter().enumerate().peekable();
         while let Some((index, circuit)) = circuits.next() {
+            println!("Proving number {} slice", index);
+
+            let _is_finalized_circuit = circuits.peek().is_none();
+
             #[cfg(feature = "continuation")]
-            let proving_key = if circuits.peek().is_none() {
+            let proving_key = if _is_finalized_circuit {
                 self.read_circuit_data(
                     &params_dir.join(name_of_circuit_data(&self.name, true)),
                     &self.circuit_datas.finalized_circuit.circuit_data_md5,
@@ -347,26 +358,33 @@ impl Config {
                 println!("Mock test is skipped...",);
             }
 
-            let circuit_info: CircuitInfo<Bn256, TestCircuit<Fr>> = CircuitInfo::new(
-                circuit,
-                self.name.clone(),
-                vec![instances.clone()],
-                self.k as usize,
-                circuits_batcher::args::HashType::Poseidon,
+            #[cfg(feature = "continuation")]
+            let circuit_data_name = name_of_circuit_data(&self.name, _is_finalized_circuit);
+            #[cfg(not(feature = "continuation"))]
+            let circuit_data_name = name_of_circuit_data(&self.name);
+
+            let proof_piece_info = ProofPieceInfo {
+                circuit: circuit_data_name,
+                instance_size: instances.len() as u32,
+                witness: name_of_witness(&self.name, index),
+                instance: name_of_instance(&self.name, index),
+                transcript: name_of_transcript(&self.name, index),
+            };
+
+            println!("Creating proof...");
+            proof_piece_info.exec_create_proof_with_params::<Bn256, _>(
+                &circuit,
+                &vec![instances.clone()],
+                &params,
+                &proving_key,
+                output_dir,
+                proof_load_info.hashtype,
             );
 
-            println!("{} Creating proof...", style("[7/8]").bold().dim(),);
-            circuit_info.exec_create_proof_with_params(&params, &proving_key, output_dir, index);
+            proof_load_info.append_single_proof(proof_piece_info);
         }
 
         {
-            let proof_load_info = ProofLoadInfo::new(
-                &self.name,
-                circuits_slices_count,
-                self.k as usize,
-                vec![instances.len() as u32],
-                circuits_batcher::args::HashType::Poseidon,
-            );
             let proof_load_info_path = output_dir.join(&name_of_loadinfo(&self.name));
             println!(
                 "{} Saving proof load info at {:?}...",
@@ -382,7 +400,7 @@ impl Config {
     pub(crate) fn verify(self, params_dir: &PathBuf, output_dir: &PathBuf) -> anyhow::Result<()> {
         let mut proofs = {
             println!(
-                "{} Reading proof from {:?}",
+                "{} Reading proofs from {:?}",
                 style("[1/4]").bold().dim(),
                 output_dir
             );
@@ -396,14 +414,19 @@ impl Config {
             proofs
         }
         .into_iter()
+        .enumerate()
         .peekable();
 
-        while let Some(proof) = proofs.next() {
+        println!(
+            "{} Found {} proofs to be verified...",
+            style("[2/4]").bold().dim(),
+            proofs.len()
+        );
+        while let Some((index, proof)) = proofs.next() {
+            println!("Verifing number {} slice", index);
+
             let params_verifier = {
-                println!(
-                    "{} Building verifier params...",
-                    style("[3/4]").bold().dim(),
-                );
+                println!(" Building verifier params...",);
 
                 let public_inputs_size = proof
                     .instances
@@ -438,7 +461,7 @@ impl Config {
                 )?;
             };
 
-            println!("{} Verifying...", style("[3/3]").bold().dim(),);
+            println!("Verifying...");
 
             native_verifier::verify_single_proof::<Bn256>(
                 &params_verifier,

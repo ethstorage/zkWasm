@@ -25,36 +25,6 @@ use crate::names::name_of_circuit_data;
 use crate::names::name_of_config;
 use crate::names::name_of_params;
 
-#[cfg(feature = "continuation")]
-#[derive(Args)]
-pub(crate) struct CircuitSizeArg {
-    /// Size of the circuit.
-    #[clap(default_value = "22", short = 'k', value_name = "K")]
-    pub(crate) value: u32,
-}
-
-#[cfg(not(feature = "continuation"))]
-#[derive(Debug, Args)]
-pub(crate) struct CircuitSizeArg {
-    /// Size of the circuit.
-    #[clap(default_value = "18", short = 'k', value_name = "K")]
-    pub(crate) value: u32,
-}
-
-#[derive(Debug, Args)]
-pub(crate) struct WasmImageArg {
-    /// Path to the Wasm image.
-    #[clap(long = "wasm")]
-    pub(crate) value: PathBuf,
-}
-
-#[derive(Debug, Args)]
-pub(crate) struct HostModeArg {
-    /// Specify execution host envionment for the runtime.
-    #[clap(long = "host", default_value_t, value_enum)]
-    pub(crate) value: HostMode,
-}
-
 #[derive(Debug)]
 pub(crate) struct SetupArg {
     pub(crate) k: u32,
