@@ -19,6 +19,7 @@ use halo2_proofs::plonk::CircuitData;
 use halo2_proofs::poly::commitment::Params;
 use halo2aggregator_s::circuits::utils::TranscriptHash;
 use halo2aggregator_s::native_verifier;
+use indicatif::ProgressBar;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -229,10 +230,10 @@ impl Config {
         context_output_filename: Option<String>,
         mock_test: bool,
     ) -> anyhow::Result<()> {
-        println!("{} Load image...", style("[1/8]").bold().dim(),);
+        println!("{} Load image...", style("[1/9]").bold().dim(),);
         let wasm_image = self.read_wasm_image(wasm_image)?;
 
-        println!("{} Load params...", style("[2/8]").bold().dim(),);
+        println!("{} Load params...", style("[2/9]").bold().dim(),);
         let params = self.read_params(params_dir)?;
 
         let loader = ZkWasmLoader::<Bn256, EnvBuilder::Arg, EnvBuilder>::new(
@@ -244,7 +245,7 @@ impl Config {
         let context_output = arg.get_context_output();
 
         let result = {
-            println!("{} Executing...", style("[3/8]").bold().dim(),);
+            println!("{} Executing...", style("[3/9]").bold().dim(),);
             let result = loader.run(arg, EnvBuilder::HostConfig::default(), false)?;
 
             println!("total guest instructions used {:?}", result.guest_statics);
@@ -259,7 +260,7 @@ impl Config {
 
                 println!(
                     "{} Write context output to file {:?}...",
-                    style("[4/8]").bold().dim(),
+                    style("[4/9]").bold().dim(),
                     context_output_path
                 );
 
@@ -267,7 +268,7 @@ impl Config {
             } else {
                 println!(
                     "{} Context output is not specified. Skip writing context output...",
-                    style("[4/8]").bold().dim()
+                    style("[4/9]").bold().dim()
                 );
             }
         }
@@ -278,13 +279,13 @@ impl Config {
 
             println!(
                 "{} Writing traces to {:?}...",
-                style("[5/8]").bold().dim(),
+                style("[5/9]").bold().dim(),
                 dir
             );
             result.tables.write(&dir);
         }
 
-        println!("{} Build circuit(s)...", style("[6/8]").bold().dim(),);
+        println!("{} Build circuit(s)...", style("[6/9]").bold().dim(),);
         let instances = result
             .public_inputs_and_outputs
             .clone()
@@ -313,19 +314,39 @@ impl Config {
             vec![circuit]
         };
 
-        println!("Created {} circuit(s)...", circuits.len());
+        if mock_test {
+            println!(
+                "{} Mock test is enabled, testing...",
+                style("[7/9]").bold().dim(),
+            );
 
-        println!("{} Creating proof(s)...", style("[7/8]").bold().dim(),);
+            let progress_bar = ProgressBar::new(circuits.len() as u64);
+
+            let mut circuits = circuits.iter();
+            while let Some(circuit) = circuits.next() {
+                loader.mock_test(circuit, &instances)?;
+
+                progress_bar.inc(1);
+            }
+
+            progress_bar.finish_and_clear();
+        } else {
+            println!(
+                "{} Mock test is disabled, skip...",
+                style("[7/9]").bold().dim(),
+            );
+        }
+
+        println!("{} Creating proof(s)...", style("[8/9]").bold().dim(),);
         let mut proof_load_info = ProofLoadInfo::new(
             &self.name,
             self.k as usize,
             circuits_batcher::args::HashType::Poseidon,
         );
 
+        let progress_bar = ProgressBar::new(circuits.len() as u64);
         let mut circuits = circuits.into_iter().enumerate().peekable();
         while let Some((index, circuit)) = circuits.next() {
-            println!("Proving number {} slice", index);
-
             let _is_finalized_circuit = circuits.peek().is_none();
 
             #[cfg(feature = "continuation")]
@@ -351,13 +372,6 @@ impl Config {
                 )?
                 .into_proving_key(&params);
 
-            if mock_test {
-                println!("Mock test...",);
-                loader.mock_test(&circuit, &instances)?;
-            } else {
-                println!("Mock test is skipped...",);
-            }
-
             #[cfg(feature = "continuation")]
             let circuit_data_name = name_of_circuit_data(&self.name, _is_finalized_circuit);
             #[cfg(not(feature = "continuation"))]
@@ -371,7 +385,6 @@ impl Config {
                 transcript: name_of_transcript(&self.name, index),
             };
 
-            println!("Creating proof...");
             proof_piece_info.exec_create_proof_with_params::<Bn256, _>(
                 &circuit,
                 &vec![instances.clone()],
@@ -382,13 +395,16 @@ impl Config {
             );
 
             proof_load_info.append_single_proof(proof_piece_info);
+
+            progress_bar.inc(1);
         }
+        progress_bar.finish_and_clear();
 
         {
             let proof_load_info_path = output_dir.join(&name_of_loadinfo(&self.name));
             println!(
-                "{} Saving proof load info at {:?}...",
-                style("[8/8]").bold().dim(),
+                "{} Saving proof load info to {:?}...",
+                style("[9/9]").bold().dim(),
                 proof_load_info_path
             );
             proof_load_info.save(proof_load_info_path.parent().unwrap());
@@ -401,7 +417,7 @@ impl Config {
         let mut proofs = {
             println!(
                 "{} Reading proofs from {:?}",
-                style("[1/4]").bold().dim(),
+                style("[1/2]").bold().dim(),
                 output_dir
             );
 
@@ -414,20 +430,17 @@ impl Config {
             proofs
         }
         .into_iter()
-        .enumerate()
         .peekable();
 
         println!(
-            "{} Found {} proofs to be verified...",
-            style("[2/4]").bold().dim(),
+            "{} Found {} proofs, verifying..",
+            style("[2/2]").bold().dim(),
             proofs.len()
         );
-        while let Some((index, proof)) = proofs.next() {
-            println!("Verifing number {} slice", index);
 
+        let progress_bar = ProgressBar::new(proofs.len() as u64);
+        while let Some(proof) = proofs.next() {
             let params_verifier = {
-                println!(" Building verifier params...",);
-
                 let public_inputs_size = proof
                     .instances
                     .iter()
@@ -461,8 +474,6 @@ impl Config {
                 )?;
             };
 
-            println!("Verifying...");
-
             native_verifier::verify_single_proof::<Bn256>(
                 &params_verifier,
                 &proof.vkey,
@@ -470,7 +481,10 @@ impl Config {
                 proof.transcripts,
                 TranscriptHash::Poseidon,
             );
+
+            progress_bar.inc(1);
         }
+        progress_bar.finish_and_clear();
 
         println!("{}", style("Verification succeeded!").green().bold().dim(),);
 
