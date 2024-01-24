@@ -68,6 +68,12 @@ impl From<MTable> for MemoryWritingTable {
             }
         });
 
+        // FIXME: create_memory_table pushed a lot of meaningless Stack init. Fix it elegantly.
+        let entries = entries
+            .into_iter()
+            .filter(|entry| entry.entry.eid != entry.end_eid)
+            .collect();
+
         MemoryWritingTable(entries)
     }
 }

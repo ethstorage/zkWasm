@@ -99,7 +99,7 @@ impl Tables {
                     offset: entry.offset,
                     ltype: entry.ltype,
                     atype: AccessType::Init,
-                    vtype: entry.vtype,
+                    vtype: init_memory_entry.vtype,
                     is_mutable: entry.is_mutable,
                     value: init_memory_entry.value,
                 });
