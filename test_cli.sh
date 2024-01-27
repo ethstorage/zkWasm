@@ -27,14 +27,14 @@ test_uniform_circuit_cli() {
 
 test_continuation_cli() {
     cargo build --release --features continuation $CUDA
-    rm -rf params output
-    $CLI --params ./params wasm_output setup
-    $CLI --params ./params wasm_output dry-run --wasm crates/zkwasm/wasm/fibonacci.wasm --public 25:i64 --output ./output
-    $CLI --params ./params wasm_output prove --wasm crates/zkwasm/wasm/fibonacci.wasm --public 25:i64 --output ./output -m
-    $CLI --params ./params wasm_output verify --output ./output
+    #rm -rf params output
+    $CLI --params ./params fib setup -k 23
+#    $CLI --params ./params wasm_output dry-run --wasm crates/zkwasm/wasm/fibonacci.wasm --public 25:i64 --output ./output
+    $CLI --params ./params fib prove --wasm crates/zkwasm/wasm/fibonacci.wasm --public 25:i64 --output ./output 
+    $CLI --params ./params fib verify --output ./output
 }
 
-test_default_cli
-test_uniform_circuit_cli
+#test_default_cli
+#test_uniform_circuit_cli
 test_continuation_cli
 

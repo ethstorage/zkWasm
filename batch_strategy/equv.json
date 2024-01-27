@@ -1,0 +1,10 @@
+{
+    "equivalents": [
+        {
+            "source": {"name": "fib", "proof_idx": 0, "column_name": "post_img_col"},
+            "target": {"name": "fib", "proof_idx": 1, "column_name": "img_col"}
+        }
+    ],
+    "expose": [],
+    "absorb": []
+}
