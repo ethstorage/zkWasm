@@ -16,7 +16,7 @@ BATCHNAME=equvbatch
 ${BATCHER} --param ./params --output ./output verify --challenge poseidon --info output/${CIRCUIT_NAME}.loadinfo.json
 
 # batch test proofs
-${BATCHER} --param ./params --output ./output batch -k 23 --challenge sha --info output/${CIRCUIT_NAME}.loadinfo.json --name ${BATCHNAME} --commits batch_strategy/equv.json
+${BATCHER} --param ./params --output ./output batch -k 23 --challenge sha --info output/${CIRCUIT_NAME}.loadinfo.json --name ${BATCHNAME} --commits batch_strategy/link/equv.json
 
 # verify generated proof for single batched circuit
 ${BATCHER} --param ./params --output ./output verify --challenge sha --info output/${BATCHNAME}.loadinfo.json

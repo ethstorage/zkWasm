@@ -1,0 +1,7 @@
+{
+    "equivalents": [],
+    "expose": [
+        {"name": "fib", "proof_idx": 0, "column_name": "post_img_col"}
+    ],
+    "absorb": []
+}

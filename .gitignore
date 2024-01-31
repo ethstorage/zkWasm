@@ -5,4 +5,5 @@
 crates/playground/wasm
 crates/playground/target
 /params
-!batch_strategy/*.json
+!batch_strategy/link/*.json
+!batch_strategy/fold/*.json

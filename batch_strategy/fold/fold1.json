@@ -1,0 +1,12 @@
+{
+    "equivalents": [],
+    "expose": [
+        {"name": "fib", "proof_idx": 1, "column_name": "post_img_col"}
+    ],
+    "absorb": [
+        {
+            "instance_idx": {"name": "foldbatch_0", "proof_idx": 0, "group_idx": 2},
+            "target": {"name": "fib", "proof_idx": 1, "column_name": "img_col"}
+        }
+    ]
+}
