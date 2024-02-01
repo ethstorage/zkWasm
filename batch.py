@@ -3,6 +3,7 @@ import os
 import json
 from typing import TypedDict, Optional
 import subprocess
+import shutil
 
 IMAGE_COL = "img_col"
 POST_IMAGE_COL = "post_img_col"
@@ -105,6 +106,36 @@ def read_json(file_name: str) -> Optional[dict]:
     except FileNotFoundError:
         return None
 
+def zkwasm_setup_command(zkwasm: str, param: str, proof_name: str, k: int):
+    print("Setup command")
+    subprocess_cmd = [zkwasm, '--params', param, proof_name,'setup',   '-k', str(k)]
+    result = subprocess.run(subprocess_cmd, capture_output=True, text=True)
+
+    print(subprocess_cmd)
+    print(result.stdout)
+    if result.returncode != 0:
+        print(result.stderr)
+        print("Setup failed, early exit")
+        exit(1)
+    print("Setup success")
+
+def zkwasm_prove_command(zkwasm: str, param: str, proof_name: str, wasm: str, public: str, output: str):
+    print("Prove command")
+    public_list = public.split()
+    subprocess_cmd = [zkwasm, '--params', param, proof_name,
+                      'prove', '--wasm', wasm, '--output',
+                      output, '--public'] + public_list
+    result = subprocess.run(subprocess_cmd, capture_output=True, text=True)
+
+    print(subprocess_cmd)
+    print(result.stdout)
+    if result.returncode != 0:
+        print(result.stderr)
+        print("Prove failed, early exit")
+        exit(1)
+    print("Prove success")
+
+
 def batcher_verify_command(batcher: str, param: str, output: str, challenge: str, proof_name: str):
     print("Batch verify command")
     subprocess_cmd = [batcher, '--param', param, '--output', output, 'verify',
@@ -166,17 +197,34 @@ def remove_stale_batch_files(param: str, output: str, proof_name: str, idx: int)
       except Exception as e:
         print(f"Error occurred while removing {file_name}: {e}") 
 
+def remove_folder(folder_path: str):
+    if os.path.exists(folder_path) and os.path.isdir(folder_path):
+        try:
+            shutil.rmtree(folder_path)
+            print(f"Folder '{folder_path}' has been removed")
+        except Exception as e:
+            print(f"Error occurred while removing folder: {e}")
+    else:
+        print(f"Folder '{folder_path}' does not exist")
 
 def main():
     # Parser
     parser = argparse.ArgumentParser(description='Batcher')
     parser.add_argument('--name', help='Proof Serires Name')
-    parser.add_argument('--length', help='Proof Serires Length')
     parser.add_argument('--k', help='Space Row')
+    parser.add_argument('--wasm', help='WASM Image File')
+    parser.add_argument('--public', help='Public Input List, ex 25:i64')
     args = parser.parse_args()
     name = str(args.name)
-    length = int(args.length)
     k = int(args.k)
+    wasm = str(args.wasm)
+    public_inputs = str(args.public)
+
+    # To check if zkWASM is set
+    zkWASM = os.environ.get('ZKWASM')
+    if zkWASM is None:
+        print("env var ZKWASM is not set, `export ZKWASM=/path/to/zkwasm` to set it.")
+        exit(1)
 
     # To check if batcher is set
     batcher = os.environ.get('BATCHER')
@@ -188,6 +236,22 @@ def main():
     params_path = 'params'
     output_path = 'output'
     hash_strategy = 'poseidon'
+
+    # Remove the folders in advance
+    remove_folder(params_path)
+    remove_folder(output_path)
+
+    # Setup
+    zkwasm_setup_command(zkWASM, params_path, name, k)
+
+    # Prove
+    zkwasm_prove_command(zkWASM, params_path, name, wasm, public_inputs, output_path)
+
+    # If above succeeds, proof loadinfo shall be generated in output folder
+    # Read the loadinfo file
+    loadinfo = read_json(output_path + '/' + name + '.loadinfo.json')
+    length = len(loadinfo['proofs'])
+    print(f"Segment Length: {length}")
 
     # Iterate through the proof series
     for i in range(length):
