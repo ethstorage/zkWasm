@@ -157,14 +157,14 @@ def remove_stale_batch_files(param: str, output: str, proof_name: str, idx: int)
     output_pattern = output + '/' + prev_batch_prefix 
     commit_file = prev_batch_prefix + ".json"
     print("remove stale files: " + param_pattern + " " + output_pattern + " " + commit_file)
-    file_list = [param_pattern + '.0.instance.data', param_pattern + '.0.transcript.data',
-                 param_pattern + '.loadinfo.json', output_pattern + '.circuit.data',
-                 output_pattern + '.circuit.data.vkey', commit_file]
+    file_list = [output_pattern + '.0.instance.data', output_pattern + '.0.transcripts.data',
+                 output_pattern + '.loadinfo.json', param_pattern + '.circuit.data',
+                 param_pattern + '.circuit.data.vkey.data', commit_file]
     for file_name in file_list:
       try:
         os.remove(file_name)
       except Exception as e:
-        print(f"Error occurred while removing {filename}: {e}") 
+        print(f"Error occurred while removing {file_name}: {e}") 
 
 
 def main():
@@ -181,7 +181,7 @@ def main():
     # To check if batcher is set
     batcher = os.environ.get('BATCHER')
     if batcher is None:
-        print("env var BATCHER is not set")
+        print("env var BATCHER is not set, `export BATCHER=/path/to/batcher` to set it.")
         exit(1)
     
     # Default folder
