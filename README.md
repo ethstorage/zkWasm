@@ -140,3 +140,18 @@ Wasm's heap load instruction specification can be found [here](https://webassemb
     This ensures the heap/stack/global loaded value are written to the value stack. The circuit of encoded cell for lookup is defined [here](crates/zkwasm/src/circuits/etable/op_configure/op_load.rs#L171).
 
 3. Other constraints such as the length, offset, loaded value size check, etc.
+
+## zkWasm Continuation 
+In zkWasm, the `ImageTable` consists of a column [`memory_addr_sel`](https://github.com/DelphinusLab/zkWasm/blob/34ff0530497ac89f8abb174676bc5f611d7bec7b/crates/zkwasm/src/circuits/image_table/mod.rs#L47) to store memory addresses (which increase row by row), and a column `col` to store the corresponding values of these memory addresses.
+
+In the Continuation, the memory at the start of the program execution is referred to as `pre_image_table`, and the memory after program execution is referred to as `post_image_table`. Both are configured using the `ImageTable`.
+
+Constraints for `post_image_table` are as follows:
+![call image](./images/continuation.png)
+
+- [`post image table: update` gate](https://github.com/DelphinusLab/zkWasm/blob/34ff0530497ac89f8abb174676bc5f611d7bec7b/crates/zkwasm/src/circuits/post_image_table/continuation.rs#L62): If a memory address has not been written to ([`update`](https://github.com/DelphinusLab/zkWasm/blob/34ff0530497ac89f8abb174676bc5f611d7bec7b/crates/zkwasm/src/circuits/post_image_table/continuation.rs#L54) selector = 0), it should be the same as the `col` in the same row of `pre_image_table`.
+
+- [`post image table: memory_finalized_lookup_encode gate`](https://github.com/DelphinusLab/zkWasm/blob/34ff0530497ac89f8abb174676bc5f611d7bec7b/crates/zkwasm/src/circuits/post_image_table/continuation.rs#L80): If a memory address has been written (`update`selector = 1), it should be the same as the last written value for that address. Additionally, through the [`lookup gate`](https://github.com/DelphinusLab/zkWasm/blob/34ff0530497ac89f8abb174676bc5f611d7bec7b/crates/zkwasm/src/circuits/post_image_table/continuation.rs#L90), it ensures that the value of `memory_finalized_lookup_encode` is indeed the last written value for that address. `lookuped` value of `memory_finalized_lookup_encode` lies in `MemoryTableConfig`'s `post_init_encode_cell`, corresponding to [`post init memory entry gate`](https://github.com/DelphinusLab/zkWasm/blob/34ff0530497ac89f8abb174676bc5f611d7bec7b/crates/zkwasm/src/circuits/mtable/mod.rs#L324).
+    - To dive a little bit into this gate, as the rows in `MemoryTableConfig` are sorted by address and eid, the constraint to determine the last written value for a certain address is: it is not an initialized value and it is the last row for that memory address. Then, the corresponding value is written into `post_init_encode_cell` for the purpose of lookup.
+
+
