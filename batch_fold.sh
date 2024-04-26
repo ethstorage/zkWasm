@@ -1,6 +1,5 @@
 #!/bin/bash
 
-BATCHER=/home/frank/projects/continuation-batcher/target/release/circuit-batcher
 export RUST_BACKTRACE=1
 export RUST_LOG=info
 
